@@ -21,22 +21,12 @@ serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    const apiKey = Deno.env.get("OPENROUTER_API_KEY") || "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";
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY not configured");
+      throw new Error("OPENROUTER_API_KEY not configured");
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: `You are a BIS (Bureau of Indian Standards) product safety analysis assistant for Indian consumers. Analyze the product image and provide a detailed BIS-focused safety assessment.
+    const prompt = `You are a BIS (Bureau of Indian Standards) product safety analysis assistant for Indian consumers. Analyze the product image and provide a detailed BIS-focused safety assessment.
 
 Identify the specific product type (e.g., "LPG gas cylinder", "electric heater", "phone charger") — be as specific as possible, not generic.
 
@@ -61,34 +51,51 @@ Respond in JSON format:
   "riskLevel": "low|medium|high",
   "summary": "Brief 2-sentence summary specific to this product",
   "recommendation": "Specific BIS safety recommendation for this product type"
-}
+}`;
 
-Analyze this product image for BIS safety verification:` },
-              { 
-                inlineData: {
-                  mimeType: imageUrl.startsWith('data:') ? imageUrl.split(';')[0].split(':')[1] : 'image/jpeg',
-                  data: imageUrl.startsWith('data:') ? imageUrl.split(',')[1] : await (await fetch(imageUrl)).arrayBuffer().then(buf => btoa(String.fromCharCode(...new Uint8Array(buf))))
-                }
-              }
-            ]
-          }
+    // Build the image content part for OpenRouter (OpenAI vision format)
+    let imageContent: any;
+    if (imageUrl.startsWith('data:')) {
+      imageContent = { type: "image_url", image_url: { url: imageUrl } };
+    } else {
+      // Fetch remote image and convert to base64
+      const imgResp = await fetch(imageUrl);
+      const mimeType = imgResp.headers.get("content-type") || "image/jpeg";
+      const buf = await imgResp.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      imageContent = { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } };
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              imageContent,
+            ],
+          },
         ],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 1024,
-        },
+        temperature: 0.4,
+        max_tokens: 1024,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Gemini API error: ${response.status} ${errorText}`);
+      throw new Error(`OpenRouter API error: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const content = data.choices?.[0]?.message?.content || "";
 
-    // Try to parse JSON from the response
     let analysis;
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);

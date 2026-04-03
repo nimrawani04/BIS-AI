@@ -73,7 +73,7 @@ export default function BISHome() {
               ].map((label) => (
                 <button
                   key={label}
-                  className="text-xs text-foreground border border-border bg-white rounded-[4px] px-2.5 py-1 hover:border-primary/40 transition-colors"
+                  className="text-xs text-foreground border border-border bg-white dark:bg-card rounded-[4px] px-2.5 py-1 hover:border-primary/40 transition-colors"
                 >
                   {label}
                 </button>
@@ -97,7 +97,7 @@ export default function BISHome() {
                 { title: 'Consumer Safety', desc: 'Check counterfeit risk and safety alerts across regions.', link: '/risk-map', icon: '🛡' },
               ].map((item) => (
                 <Link key={item.title} to={item.link} className="block">
-                  <div className="border border-border bg-white rounded-[4px] p-4 h-full hover:border-primary/40 transition-colors">
+                  <div className="border border-border bg-white dark:bg-card rounded-[4px] p-4 h-full hover:border-primary/40 transition-colors">
                     <p className="text-sm font-semibold text-foreground flex items-center gap-2">
                       <span className="text-primary">{item.icon}</span>
                       {item.title}
@@ -112,7 +112,7 @@ export default function BISHome() {
 
         <section className="px-4 py-6 bg-background">
           <div className="max-w-5xl mx-auto">
-            <div className="border border-border border-l-4 border-l-primary bg-white rounded-[4px] p-5">
+            <div className="border border-border border-l-4 border-l-primary bg-white dark:bg-card rounded-[4px] p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">⚠ Consumer Safety Alerts</h3>

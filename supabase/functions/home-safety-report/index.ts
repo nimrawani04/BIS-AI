@@ -5,61 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Convert Gemini SSE stream to OpenAI-compatible format
-async function convertGeminiStreamToOpenAI(geminiStream: ReadableStream) {
-  const reader = geminiStream.getReader();
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-
-  return new ReadableStream({
-    async start(controller) {
-      let buffer = '';
-      
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          
-          for (const line of lines) {
-            if (!line.trim() || line.startsWith(':')) continue;
-            if (!line.startsWith('data: ')) continue;
-            
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === '[DONE]') continue;
-            
-            try {
-              const geminiData = JSON.parse(jsonStr);
-              const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-              
-              if (text) {
-                const openaiFormat = {
-                  choices: [{
-                    delta: { content: text },
-                    index: 0,
-                    finish_reason: null
-                  }]
-                };
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(openaiFormat)}\n\n`));
-              }
-            } catch (e) {
-              console.error('Parse error:', e);
-            }
-          }
-        }
-        
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      } catch (error) {
-        controller.error(error);
-      }
-    }
-  });
-}
-
 const systemPrompt = `You are the ISI Guardian Home Safety Analyst. You receive a list of household products with their certification status and safety score.
 
 Generate a personalized home safety analysis in markdown. Be specific about each product. Use this structure:
@@ -94,24 +39,24 @@ serve(async (req) => {
       });
     }
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") || "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";
+    if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY is not configured");
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`, {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        contents: [
-          { role: "user", parts: [{ text: systemPrompt }] },
-          { role: "model", parts: [{ text: "Understood. I'll provide detailed home safety analysis." }] },
-          { role: "user", parts: [{ text: `Home Safety Score: ${score}/100\n\nProducts scanned:\n${products}\n\nPlease provide a detailed home safety analysis.` }] },
+        model: "google/gemini-2.5-flash",
+        stream: true,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Home Safety Score: ${score}/100\n\nProducts scanned:\n${products}\n\nPlease provide a detailed home safety analysis.` },
         ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-        },
+        temperature: 0.7,
+        max_tokens: 2048,
       }),
     });
 
@@ -123,16 +68,14 @@ serve(async (req) => {
         });
       }
       const text = await response.text();
-      console.error("Gemini API error:", response.status, text);
+      console.error("OpenRouter API error:", response.status, text);
       return new Response(JSON.stringify({ error: "AI service unavailable" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const convertedStream = await convertGeminiStreamToOpenAI(response.body!);
-    
-    return new Response(convertedStream, {
+    return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {

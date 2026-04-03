@@ -6,415 +6,345 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type ChunkMeta = { url: string; title: string; snippet: string; content_type: 'webpage' | 'pdf' | 'table' };
+// ── Config (rag.md §8, §12) ───────────────────────────────────────────────────
+const RETRIEVE_COUNT = 15;       // retrieve 15 candidates
+const RERANK_TOP_K = 3;          // keep top 3 after reranking
+const CONFIDENCE_THRESHOLD = 0.25; // below this → no chunks returned (rag.md §8)
 
-// Convert Gemini SSE stream to OpenAI-compatible format
-async function convertGeminiStreamToOpenAI(geminiStream: ReadableStream, sourceUrls: string[] = [], chunkMeta: ChunkMeta[] = []) {
-  const reader = geminiStream.getReader();
+type ChunkMeta = { url: string; title: string; snippet: string; content_type: "webpage" | "pdf" | "table" };
+
+// ── Query embedding (Gemini text-embedding-004 → 768-d) ──────────────────────
+async function generateQueryEmbedding(text: string, apiKey: string): Promise<number[] | null> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "models/text-embedding-004", content: { parts: [{ text }] } }),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.embedding?.values ?? null;
+  } catch { return null; }
+}
+
+// ── Cross-encoder reranking via OpenRouter (rag.md §8) ───────────────────────
+// We use the LLM to score (query, chunk) relevance pairs and return top-k.
+// This replaces a local cross-encoder model (not available in Deno edge runtime).
+async function rerankWithLLM(
+  query: string,
+  candidates: any[],
+  topK: number,
+  apiKey: string
+): Promise<any[]> {
+  if (candidates.length <= topK) return candidates;
+
+  try {
+    // Ask the LLM to rank the candidates by relevance to the query
+    const candidateList = candidates
+      .map((c, i) => `[${i}] ${c.content.slice(0, 300)}`)
+      .join("\n\n");
+
+    const prompt = `You are a relevance ranker. Given the query and candidate passages, return ONLY a JSON array of the ${topK} most relevant passage indices (0-based), ordered by relevance descending. Example: [2,0,4]
+
+Query: ${query}
+
+Candidates:
+${candidateList}
+
+Return ONLY the JSON array, nothing else.`;
+
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0,
+        max_tokens: 50,
+      }),
+    });
+
+    if (!res.ok) throw new Error(`Rerank API error: ${res.status}`);
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || "";
+    const match = text.match(/\[[\d,\s]+\]/);
+    if (!match) throw new Error("No valid JSON array in rerank response");
+
+    const indices: number[] = JSON.parse(match[0]);
+    const reranked = indices
+      .filter(i => i >= 0 && i < candidates.length)
+      .slice(0, topK)
+      .map(i => candidates[i]);
+
+    return reranked.length > 0 ? reranked : candidates.slice(0, topK);
+  } catch (e) {
+    console.error("Rerank failed, using top-k by score:", e);
+    // Graceful fallback: just take top-k by retrieval score
+    return candidates.slice(0, topK);
+  }
+}
+
+// ── SSE stream helper ─────────────────────────────────────────────────────────
+// Pass-through OpenRouter SSE, append sources + chunk-meta before [DONE]
+function appendSourcesToStream(
+  upstream: ReadableStream,
+  sourceUrls: string[],
+  chunkMeta: ChunkMeta[]
+): ReadableStream {
+  const reader = upstream.getReader();
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
   return new ReadableStream({
     async start(controller) {
-      let buffer = '';
-      let fullResponse = '';
-      
+      let buffer = "";
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
           for (const line of lines) {
-            if (!line.trim() || line.startsWith(':')) continue;
-            if (!line.startsWith('data: ')) continue;
-            
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === '[DONE]') continue;
-            
-            try {
-              const geminiData = JSON.parse(jsonStr);
-              const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-              
-              if (text) {
-                fullResponse += text;
-                const openaiFormat = {
-                  choices: [{
-                    delta: { content: text },
-                    index: 0,
-                    finish_reason: null
-                  }]
-                };
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(openaiFormat)}\n\n`));
-              }
-            } catch (e) {
-              console.error('Parse error:', e);
-            }
+            if (line === "data: [DONE]") continue;
+            controller.enqueue(encoder.encode(line + "\n"));
           }
         }
-        
-        // Always append our structured sources block from DB chunk URLs.
-        // Gemini may write its own ---SOURCES--- inline; we ignore that and
-        // always emit the canonical block so parseSources() on the frontend
-        // reliably finds bare "- https://..." lines.
         if (sourceUrls.length > 0) {
-          const sourcesSection = '\n\n---SOURCES---\n' + sourceUrls.map(url => `- ${url}`).join('\n');
-          const openaiFormat = {
-            choices: [{
-              delta: { content: sourcesSection },
-              index: 0,
-              finish_reason: null
-            }]
-          };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(openaiFormat)}\n\n`));
+          const src = "\n\n---SOURCES---\n" + sourceUrls.map(u => `- ${u}`).join("\n");
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: src }, index: 0, finish_reason: null }] })}\n\n`));
         }
-
-        // Append chunk metadata for dynamic citation previews
         if (chunkMeta.length > 0) {
-          const metaSection = '\n\n---CHUNK_META---\n' + JSON.stringify(chunkMeta);
-          const openaiFormat = {
-            choices: [{
-              delta: { content: metaSection },
-              index: 0,
-              finish_reason: null
-            }]
-          };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(openaiFormat)}\n\n`));
+          const meta = "\n\n---CHUNK_META---\n" + JSON.stringify(chunkMeta);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: meta }, index: 0, finish_reason: null }] })}\n\n`));
         }
-        
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
-      } catch (error) {
-        controller.error(error);
-      }
-    }
+      } catch (err) { controller.error(err); }
+    },
   });
 }
 
-const groundingPrompt = `You are the BIS Smart Assistant — an expert AI on the Bureau of Indian Standards (BIS).
+// ── System prompt ─────────────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are the BIS Smart Assistant — an expert AI on the Bureau of Indian Standards (BIS).
 
-## PRIORITY ORDER FOR ANSWERING
-1. FIRST: Use the RETRIEVED CONTEXT section below if it contains relevant information
-2. SECOND: Use the BUILT-IN BIS KNOWLEDGE BASE below for common BIS topics
-3. LAST RESORT: If neither has relevant info, say you couldn't find it
+## PRIORITY ORDER
+1. FIRST: Use the RETRIEVED CONTEXT below if it contains relevant information
+2. SECOND: Use the BUILT-IN BIS KNOWLEDGE BASE for common BIS topics
+3. LAST RESORT: Say you couldn't find it — never hallucinate
 
-## CRITICAL RULES
-
-### 1. OUT-OF-SCOPE DETECTION
-If a question is NOT about BIS, respond: "I can only answer questions related to the Bureau of Indian Standards (BIS) and its services."
-
-### 2. CITATION REQUIREMENT
-- When answering from RETRIEVED CONTEXT, cite the source URLs from those chunks
-- When answering from BUILT-IN KNOWLEDGE, cite the relevant bis.gov.in URL from the knowledge base
-- Only say "I could not find information" if BOTH the retrieved context AND built-in knowledge lack the answer
-
-### 3. CONVERSATION CONTEXT
-Maintain multi-turn conversation context from previous messages.
-
-### 4. NO HALLUCINATION
-Never make up fees, dates, or procedures not present in the context or knowledge base.
-
-## FORMATTING
-- Use markdown for rich formatting (headers, lists, bold, tables)
-- For comparison questions, use markdown tables
-
-## RESPONSE STRUCTURE
-1. Answer using retrieved context (preferred) or built-in knowledge
-2. Add ---SOURCES--- with relevant URLs
-3. Add ---SUGGESTIONS--- with 3 follow-up questions
-
-## CITATIONS FORMAT
----SOURCES---
-- [relevant URL]
-
-## SUGGESTIONS FORMAT
----SUGGESTIONS---
-- First suggested question
-- Second suggested question
-- Third suggested question
-
-## MULTILINGUAL SUPPORT
-If the user writes in Hindi, Hinglish, or other Indian languages, respond in the same language. Keep technical terms (BIS, ISI, FMCS) in English.
-
----
+## RULES
+- OUT-OF-SCOPE: If NOT about BIS, respond: "I can only answer questions related to the Bureau of Indian Standards (BIS) and its services."
+- NO HALLUCINATION: Never invent fees, dates, or procedures.
+- CITATIONS: Always end with ---SOURCES--- listing relevant URLs.
+- SUGGESTIONS: Always end with ---SUGGESTIONS--- with 3 follow-up questions.
+- MULTILINGUAL: Match user's language (Hindi/Hinglish/regional). Keep BIS, ISI, FMCS in English.
+- Use markdown (headers, lists, bold, tables).
 
 ## BUILT-IN BIS KNOWLEDGE BASE
 
 ### About BIS
-The Bureau of Indian Standards (BIS) is the national standards body of India established under the BIS Act, 2016. It operates under the Ministry of Consumer Affairs, Food and Public Distribution, Government of India. BIS was formerly known as the Indian Standards Institution (ISI), established in 1947. BIS headquarters is in New Delhi with 5 Regional Offices (Delhi, Mumbai, Kolkata, Chennai, Chandigarh) and 21 Branch Offices across India.
+BIS is India's national standards body under BIS Act 2016, Ministry of Consumer Affairs. Formerly ISI (1947). HQ New Delhi, 5 Regional Offices, 21 Branch Offices.
 
-### BIS Functions
-1. Development of Indian Standards
-2. Product Certification (ISI Mark)
-3. Hallmarking of precious metals
-4. Compulsory Registration Scheme (CRS) for electronics
-5. Laboratory testing and calibration
-6. Training and consumer awareness
-7. International cooperation (ISO, IEC membership)
+### Certification Schemes
+**ISI Mark** — 900+ products. Apply: manakonline.bis.gov.in. Source: https://www.bis.gov.in/index.php/certification/product-certification/
+**Hallmarking** — Gold/silver purity. Mandatory for gold since June 2021. HUID on each piece. Source: https://www.bis.gov.in/index.php/certification/hallmarking/
+**CRS** — Electronics self-declaration. Source: https://www.bis.gov.in/index.php/certification/scheme-for-compulsory-registration/
+**FMCS** — Foreign manufacturers. Source: https://www.bis.gov.in/index.php/certification/foreign-manufacturers-certification-scheme-fmcs/
+**ECO Mark** — Environment-friendly products.
 
-### BIS Certification Schemes
-
-**Product Certification (ISI Mark)**
-- For products conforming to Indian Standards; applies to 900+ products
-- Application via manakonline.bis.gov.in
-- Process: Application → Document review → Factory inspection → Product testing → License grant
-- Surveillance audits conducted regularly
-- Source: https://www.bis.gov.in/index.php/certification/product-certification/
-
-**Hallmarking Scheme**
-- For gold and silver jewelry purity certification
-- Gold grades: 14K (585), 18K (750), 20K (833), 22K (916), 24K (999)
-- Each piece gets a HUID (Hallmark Unique Identification) number
-- Mandatory for gold jewelry since June 2021
-- Source: https://www.bis.gov.in/index.php/certification/hallmarking/
-
-**Compulsory Registration Scheme (CRS)**
-- For electronic and IT goods (adapters, LED lights, laptops, mobile phones, smart watches, etc.)
-- Self-declaration with testing at BIS-recognized labs
-- Source: https://www.bis.gov.in/index.php/certification/scheme-for-compulsory-registration/
-
-**Foreign Manufacturers Certification Scheme (FMCS)**
-- For foreign manufacturers wanting to sell in India
-- Requires liaison office or authorized Indian representative
-- Source: https://www.bis.gov.in/index.php/certification/foreign-manufacturers-certification-scheme-fmcs/
-
-**ECO Mark Scheme**
-- For environment-friendly products (soaps, paints, paper, plastics, textiles)
-
-### How to Apply for BIS Certification
-1. Visit manakonline.bis.gov.in and create an account
-2. Submit online application with documents (test reports, factory details, quality control plan)
-3. BIS reviews and assigns an officer
-4. Factory/premises inspection by BIS officer
-5. Product samples tested at BIS-recognized laboratories
-6. If compliant, BIS grants the license/certificate
-7. Annual surveillance and periodic renewal required
-- Source: https://manakonline.bis.gov.in
-
-### Consumer Affairs & Complaints
-- Consumers can file complaints about sub-standard ISI marked products via the BIS Consumer Affairs portal
-- Visit: https://www.bis.gov.in/index.php/consumer-affairs/
-- BIS conducts market surveillance to check compliance
-- Consumer awareness campaigns, workshops, and publications
-- Collaboration with consumer organizations
-- World Standards Day celebrations annually
-- Complaint process: Visit portal → Provide product details and issue → BIS investigates
+### Application Process
+1. Register at https://manakonline.bis.gov.in
+2. Submit application + documents (test reports, factory details, QC plan)
+3. BIS review → factory inspection → product testing → license
+4. Annual surveillance + renewal
 
 ### BIS Standards
-- 22,000+ Indian Standards published
-- Covers: Food, Electronics, Textiles, Civil Engineering, Chemicals, Mechanical, Medical, etc.
-- Developed through Technical Committees with industry, government, and consumer representation
-- Designated as "IS" followed by a number (e.g., IS 10500 for drinking water)
-- Can be purchased from bis.gov.in or read at BIS library
-- Source: https://www.bis.gov.in/index.php/standards/bis-standards/
+22,000+ Indian Standards (IS + number, e.g. IS 10500 for drinking water). Source: https://www.bis.gov.in/index.php/standards/bis-standards/
+
+### Consumer Affairs
+Complaints: https://www.bis.gov.in/index.php/consumer-affairs/
 
 ### BIS Laboratories
-- Operates labs in: Mumbai, Kolkata, Chandigarh, Chennai, and Sahibabad
-- Testing for: Gold/silver, electronics, chemicals, food, textiles, mechanical products
-- NABL accredited laboratories
-- Source: https://www.bis.gov.in/index.php/laboratory-services/
-
-### Manak Online Portal
-- manakonline.bis.gov.in — for all certification applications, status tracking, fee payment, certificate download, and license renewal
+NABL-accredited labs in Mumbai, Kolkata, Chandigarh, Chennai, Sahibabad. Source: https://www.bis.gov.in/index.php/laboratory-services/
 
 ### BIS Act 2016
-- Replaced the Bureau of Indian Standards Act, 1986
-- Provides for mandatory standards and certification
-- Penalties for misuse of BIS marks
-- Enables hallmarking regulation`;
+Replaced BIS Act 1986. Mandatory standards, certification, penalties for misuse of BIS marks.`;
 
+// ── Main handler ──────────────────────────────────────────────────────────────
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { messages, topic_filter, language, simple_mode } = await req.json();
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: "Missing messages" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") || "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";
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) {
-      console.error("GEMINI_API_KEY is not configured");
-      return new Response(JSON.stringify({ error: "GEMINI_API_KEY is not configured. Please set it in Supabase project settings." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // --- RETRIEVE: Get the user's latest query ---
-    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-    const query = lastUserMsg?.content || '';
+    // Extract latest user query
+    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
+    const rawQuery = lastUserMsg?.content || "";
+    const searchQuery = typeof rawQuery === "string"
+      ? rawQuery
+      : Array.isArray(rawQuery) ? (rawQuery as any[]).find(c => c.type === "text")?.text || "" : "";
 
-    // --- RETRIEVE: FTS search ---
-    const searchQuery = typeof query === 'string'
-      ? query
-      : Array.isArray(query)
-        ? (query as any[]).find((c) => c.type === 'text')?.text || ''
-        : '';
+    let candidates: any[] = [];
+    let searchMode = "none";
 
-    let chunks: any[] = [];
-
-    // 1. Try FTS via RPC
-    const { data: ftsData, error: ftsError } = await supabase.rpc('search_bis_chunks', {
-      search_query: searchQuery,
-      match_count: 10,
-      filter_type: topic_filter && topic_filter !== 'all' ? topic_filter : null,
-    });
-
-    if (ftsError) {
-      console.error("FTS search error:", ftsError);
-    } else if (ftsData && ftsData.length > 0) {
-      chunks = ftsData;
-      console.log(`FTS returned ${chunks.length} chunks`);
-    }
-
-    // 2. Fallback: ILIKE scan on meaningful keywords
-    if (chunks.length === 0) {
-      console.log("FTS returned nothing, trying ILIKE fallback...");
-      const keywords = searchQuery
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w: string) => w.length > 3)
-        .slice(0, 4);
-
-      if (keywords.length > 0) {
-        // Build individual ILIKE filters and OR them via multiple .select calls
-        let q = supabase
-          .from('bis_knowledge_chunks')
-          .select('id, url, title, content_type, content, chunk_index');
-
-        // Use the first keyword as primary filter, then filter in JS for others
-        q = q.ilike('content', `%${keywords[0]}%`);
-
-        const { data: likeData } = await q.limit(20);
-        if (likeData && likeData.length > 0) {
-          // Score by how many keywords appear in the content
-          const scored = likeData.map((row: any) => ({
-            ...row,
-            _score: keywords.filter((k: string) => row.content.toLowerCase().includes(k)).length,
-          }));
-          scored.sort((a: any, b: any) => b._score - a._score);
-          chunks = scored.slice(0, 8);
-          console.log(`ILIKE fallback found ${chunks.length} chunks`);
+    // ── Step 1: Retrieve 15 candidates (rag.md §8) ────────────────────────────
+    if (GEMINI_API_KEY && searchQuery) {
+      const embedding = await generateQueryEmbedding(searchQuery, GEMINI_API_KEY);
+      if (embedding) {
+        const { data, error } = await supabase.rpc("search_bis_chunks_hybrid", {
+          search_query: searchQuery,
+          query_embedding: embedding,
+          match_count: RETRIEVE_COUNT,
+          filter_type: topic_filter && topic_filter !== "all" ? topic_filter : null,
+          rrf_k: 60,
+        });
+        if (!error && data && data.length > 0) {
+          candidates = data;
+          searchMode = "hybrid";
         }
       }
     }
 
-    // --- BUILD CONTEXT ---
-    let contextBlock = '';
+    // FTS fallback
+    if (candidates.length === 0 && searchQuery) {
+      const { data, error } = await supabase.rpc("search_bis_chunks", {
+        search_query: searchQuery,
+        match_count: RETRIEVE_COUNT,
+        filter_type: topic_filter && topic_filter !== "all" ? topic_filter : null,
+      });
+      if (!error && data && data.length > 0) {
+        candidates = data;
+        searchMode = "fts";
+      }
+    }
+
+    // ILIKE last resort
+    if (candidates.length === 0 && searchQuery) {
+      const keywords = searchQuery.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3).slice(0, 4);
+      if (keywords.length > 0) {
+        const { data } = await supabase
+          .from("bis_knowledge_chunks")
+          .select("id, url, title, content_type, content, chunk_index")
+          .ilike("content", `%${keywords[0]}%`)
+          .limit(RETRIEVE_COUNT);
+        if (data && data.length > 0) {
+          candidates = data
+            .map((row: any) => ({ ...row, rrf_score: keywords.filter((k: string) => row.content.toLowerCase().includes(k)).length }))
+            .sort((a: any, b: any) => b.rrf_score - a.rrf_score);
+          searchMode = "ilike";
+        }
+      }
+    }
+
+    console.log(`Search: ${searchMode}, candidates: ${candidates.length}`);
+
+    // ── Step 2: Confidence gate (rag.md §8) ───────────────────────────────────
+    // For hybrid/semantic results, check top candidate's score
+    let chunks: any[] = [];
+    if (candidates.length > 0) {
+      const topScore = candidates[0]?.rrf_score ?? candidates[0]?.semantic_rank ?? candidates[0]?.rank ?? 1;
+      if (searchMode === "hybrid" && topScore < CONFIDENCE_THRESHOLD) {
+        console.log(`Confidence gate: top score ${topScore} < ${CONFIDENCE_THRESHOLD}, skipping retrieval`);
+        chunks = []; // force fallback to built-in knowledge
+      } else {
+        // ── Step 3: Rerank top 15 → top 3 (rag.md §8) ────────────────────────
+        chunks = await rerankWithLLM(searchQuery, candidates, RERANK_TOP_K, OPENROUTER_API_KEY);
+        console.log(`After rerank: ${chunks.length} chunks`);
+      }
+    }
+
+    // ── Build context block ───────────────────────────────────────────────────
     const sourceUrls: string[] = [];
     const chunkMeta: ChunkMeta[] = [];
-    
-    if (chunks && chunks.length > 0) {
-      contextBlock = '\n\n## RETRIEVED CONTEXT (use this to answer)\n\n';
+    let contextBlock = "";
+
+    if (chunks.length > 0) {
+      contextBlock = "\n\n## RETRIEVED CONTEXT (use this to answer)\n\n";
       for (const chunk of chunks) {
-        contextBlock += `### ${chunk.title}${chunk.url ? ` (Source: ${chunk.url})` : ''}\n`;
-        contextBlock += `${chunk.content}\n\n`;
-        
-        // Collect unique source URLs
+        contextBlock += `### ${chunk.title}${chunk.url ? ` (Source: ${chunk.url})` : ""}\n${chunk.content}\n\n`;
         if (chunk.url && !sourceUrls.includes(chunk.url)) {
           sourceUrls.push(chunk.url);
-          // Detect content type from URL and content
-          let content_type: 'webpage' | 'pdf' | 'table' = 'webpage';
-          if (chunk.url.toLowerCase().includes('.pdf') || chunk.content_type === 'pdf') {
-            content_type = 'pdf';
-          } else if (chunk.content_type === 'table' || (chunk.content && chunk.content.includes('|') && chunk.content.includes('---'))) {
-            content_type = 'table';
-          }
-          // Use first 300 chars of chunk content as snippet
-          const snippet = chunk.content ? chunk.content.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
-          chunkMeta.push({ url: chunk.url, title: chunk.title || chunk.url, snippet, content_type });
+          let ct: "webpage" | "pdf" | "table" = "webpage";
+          if (chunk.url.toLowerCase().includes(".pdf") || chunk.content_type === "pdf") ct = "pdf";
+          else if (chunk.content_type === "table" || (chunk.content?.includes("|") && chunk.content?.includes("---"))) ct = "table";
+          chunkMeta.push({
+            url: chunk.url,
+            title: chunk.title || chunk.url,
+            snippet: (chunk.content || "").replace(/\s+/g, " ").trim().slice(0, 300),
+            content_type: ct,
+          });
         }
       }
     } else {
-      contextBlock = '\n\n## RETRIEVED CONTEXT\nNo specific chunks were retrieved from the database for this query. Use the BUILT-IN BIS KNOWLEDGE BASE above to answer if the topic is covered there. If the topic is not covered in either source, then say you could not find the information.\n';
+      contextBlock = "\n\n## RETRIEVED CONTEXT\nNo relevant chunks found. Use the BUILT-IN BIS KNOWLEDGE BASE above.\n";
     }
 
-    // Build final system prompt
-    let finalPrompt = groundingPrompt + contextBlock;
-
-    if (simple_mode) {
-      finalPrompt += `\n\nSIMPLE MODE: Explain as if talking to a 10-year-old. Use emojis, short sentences, and fun analogies.`;
-    }
+    let finalPrompt = SYSTEM_PROMPT + contextBlock;
+    if (simple_mode) finalPrompt += "\n\nSIMPLE MODE: Explain like a 10-year-old. Use emojis and short sentences.";
 
     const langMap: Record<string, string> = {
       hi: "Hindi", bn: "Bengali", ta: "Tamil", te: "Telugu", ur: "Urdu",
       ks: "Kashmiri", mr: "Marathi", gu: "Gujarati", kn: "Kannada",
-      ml: "Malayalam", pa: "Punjabi"
+      ml: "Malayalam", pa: "Punjabi",
     };
     if (language && language !== "en" && langMap[language]) {
       finalPrompt += `\n\nRESPOND IN ${langMap[language]}. Keep technical terms in English.`;
     }
 
-    // Convert messages to Gemini format
-    const geminiContents = [
-      { role: "user", parts: [{ text: finalPrompt }] },
-      { role: "model", parts: [{ text: "Understood. I'll answer based on the BIS context provided." }] },
-    ];
-    
-    for (const msg of messages) {
-      geminiContents.push({
-        role: msg.role === "assistant" ? "model" : "user",
-        parts: [{ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }]
-      });
-    }
-
-    // --- ANSWER: Pass context + conversation to LLM ---
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`, {
+    // ── Step 4: Generate answer (rag.md §10) ──────────────────────────────────
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: geminiContents,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-        },
+        model: "google/gemini-2.5-flash",
+        stream: true,
+        messages: [
+          { role: "system", content: finalPrompt },
+          ...messages.map((m: any) => ({
+            role: m.role,
+            content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+          })),
+        ],
+        temperature: 0.7,
+        max_tokens: 2048,
       }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API error:", response.status, errorText);
-      
+      const errText = await response.text();
+      console.error("OpenRouter error:", response.status, errText);
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit reached. Please wait a moment." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      
-      return new Response(JSON.stringify({ error: `AI service error: ${response.status} - ${errorText}` }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: `AI service error: ${response.status}` }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const convertedStream = await convertGeminiStreamToOpenAI(response.body!, sourceUrls, chunkMeta);
-    
-    return new Response(convertedStream, {
+    return new Response(appendSourcesToStream(response.body!, sourceUrls, chunkMeta), {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {
     console.error("rag-search error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
-

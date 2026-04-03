@@ -7,7 +7,6 @@ import remarkGfm from 'remark-gfm';
 import { Send, Loader2, ExternalLink, Mic, MicOff, Globe, Upload, ImageIcon } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { languageLabels, type SupportedLanguage } from '@/data/offlineKnowledgeMultilingual';
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rag-search`;
@@ -96,7 +95,6 @@ export default function BISChat() {
   const [isListening, setIsListening] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -286,30 +284,36 @@ export default function BISChat() {
   };
 
   const handleUploadAndAsk = async () => {
-    if (!uploadedFile || isUploading || isAnalyzing) return;
+    if (!uploadedFile || isAnalyzing) return;
 
-    setIsUploading(true);
+    setIsAnalyzing(true);
     try {
-      const fileName = `${Date.now()}-${uploadedFile.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, uploadedFile);
+      // Convert image to base64 data URL directly — no Supabase Storage needed
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(uploadedFile);
+      });
 
-      if (uploadError) throw uploadError;
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(uploadData.path);
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/analyze-product-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+        },
+        body: JSON.stringify({ imageUrl: dataUrl }),
+      });
 
-      setIsUploading(false);
-      setIsAnalyzing(true);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: 'Analysis failed' }));
+        throw new Error(err.error || `HTTP ${resp.status}`);
+      }
 
-      const { data: analysisData, error: analysisError } = await supabase.functions
-        .invoke('analyze-product-image', {
-          body: { imageUrl: publicUrl },
-        });
-
-      if (analysisError) throw analysisError;
+      const analysisData = await resp.json();
 
       const analysis = analysisData.analysis;
       setLastAnalysis(analysis);
@@ -330,10 +334,9 @@ export default function BISChat() {
       sendMessage(promptParts.join('\n'));
       toast.success('Image analyzed. Asking BIS AI...');
     } catch (error: any) {
-      console.error('Upload/analysis error:', error);
+      console.error('Analysis error:', error);
       toast.error(error.message || 'Failed to analyze image');
     } finally {
-      setIsUploading(false);
       setIsAnalyzing(false);
     }
   };
@@ -346,7 +349,7 @@ export default function BISChat() {
           <div className="text-sm text-muted-foreground">Home &gt; Ask BIS AI</div>
 
           <div className="grid md:grid-cols-[260px_1fr] gap-6 mt-4">
-            <aside className="border border-border bg-white rounded-[2px] p-4 space-y-5">
+            <aside className="border border-border bg-white dark:bg-card rounded-[2px] p-4 space-y-5">
               <div>
                 <p className="text-[11px] uppercase tracking-[1px] text-muted-foreground mb-2">Knowledge Topics</p>
                 <ul className="space-y-1">
@@ -386,7 +389,7 @@ export default function BISChat() {
             </aside>
 
             <section className="space-y-4">
-              <div className="border border-border bg-white rounded-[2px] p-4 space-y-2">
+              <div className="border border-border bg-white dark:bg-card rounded-[2px] p-4 space-y-2">
                 <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground">Digital Knowledge Service</div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-foreground">BIS AI Knowledge Assistant</h1>
                 <p className="text-sm text-muted-foreground">Government of India ? Bureau of Indian Standards</p>
@@ -437,7 +440,7 @@ export default function BISChat() {
                   </Button>
                 </form>
 
-                <div className="mt-4 border border-border rounded-[4px] p-3 bg-[#f9fafb]">
+                <div className="mt-4 border border-border rounded-[4px] p-3 bg-[#f9fafb] dark:bg-secondary/30">
                   <div className="flex items-center gap-2 mb-2">
                     <ImageIcon className="h-4 w-4 text-primary" />
                     <p className="text-xs font-semibold text-foreground">Scan Product (Upload Photo)</p>
@@ -469,10 +472,10 @@ export default function BISChat() {
                       type="button"
                       className="w-full sm:w-auto gap-2"
                       onClick={handleUploadAndAsk}
-                      disabled={!uploadedFile || isUploading || isAnalyzing}
+                      disabled={!uploadedFile || isAnalyzing}
                     >
-                      {isUploading || isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      {isUploading ? 'Uploading...' : isAnalyzing ? 'Analyzing...' : 'Analyze & Ask'}
+                      {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      {isAnalyzing ? 'Analyzing...' : 'Analyze & Ask'}
                     </Button>
                     {uploadedFile && (
                       <Button
@@ -487,7 +490,7 @@ export default function BISChat() {
                   </div>
                   {imagePreview && (
                     <div className="mt-3 flex items-center gap-3">
-                      <img src={imagePreview} alt="Uploaded product" className="h-16 w-16 object-contain rounded border bg-white" />
+                      <img src={imagePreview} alt="Uploaded product" className="h-16 w-16 object-contain rounded border bg-white dark:bg-card" />
                       <div className="text-xs text-muted-foreground">
                         {lastAnalysis?.summary ? lastAnalysis.summary : 'Photo ready for analysis.'}
                       </div>
@@ -496,14 +499,14 @@ export default function BISChat() {
                 </div>
               </div>
 
-              <div className="border border-border bg-white rounded-[2px] p-4" ref={scrollRef}>
+              <div className="border border-border bg-white dark:bg-card rounded-[2px] p-4" ref={scrollRef}>
                 <p className="text-[11px] uppercase tracking-[1px] text-muted-foreground">AI Response</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Answer generated from BIS knowledge repository with source references.
                 </p>
 
                 {messages.length === 0 && (
-                  <div className="mt-3 border border-border bg-white rounded-[2px] p-4 text-sm text-muted-foreground">
+                  <div className="mt-3 border border-border bg-white dark:bg-secondary/20 rounded-[2px] p-4 text-sm text-muted-foreground">
                     Enter a question above to view the official BIS knowledge response here.
                   </div>
                 )}
@@ -511,7 +514,7 @@ export default function BISChat() {
                 {messages.map((msg, i) => {
                   if (msg.role === 'user') {
                     return (
-                      <div key={i} className="mt-4 border border-border bg-white rounded-[2px] p-4">
+                      <div key={i} className="mt-4 border border-border bg-white dark:bg-secondary/20 rounded-[2px] p-4">
                         <p className="text-[11px] uppercase tracking-[1px] text-muted-foreground">Question</p>
                         <p className="text-sm text-foreground mt-1">{msg.content}</p>
                       </div>
@@ -521,7 +524,7 @@ export default function BISChat() {
                   const { body, sources } = parseSources(msg.content);
 
                   return (
-                    <div key={i} className="mt-3 border border-border bg-white rounded-[2px] p-4">
+                    <div key={i} className="mt-3 border border-border bg-white dark:bg-card rounded-[2px] p-4">
                       <p className="text-[11px] uppercase tracking-[1px] text-muted-foreground">Answer</p>
                       <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground mt-2">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
@@ -547,7 +550,7 @@ export default function BISChat() {
                 })}
               </div>
 
-              <div className="border border-border bg-[#f9fafb] rounded-[2px] p-4 text-xs text-muted-foreground">
+              <div className="border border-border bg-[#f9fafb] dark:bg-secondary/30 rounded-[2px] p-4 text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground">Note:</span> Responses are generated using BIS publications and regulatory documents. Users should verify information through official BIS documentation.
               </div>
             </section>

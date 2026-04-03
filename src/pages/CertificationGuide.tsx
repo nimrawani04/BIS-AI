@@ -62,7 +62,7 @@ export default function CertificationGuide() {
           {/* Steps */}
           <div className="space-y-4 mb-8">
             {steps.map((s) => (
-              <div key={s.step} className="border border-border border-l-4 border-l-primary bg-white rounded-[2px] p-4 flex gap-4 items-start">
+              <div key={s.step} className="border border-border border-l-4 border-l-primary bg-white dark:bg-card rounded-[2px] p-4 flex gap-4 items-start">
                 <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-[13px]">
                   {s.step}
                 </div>
@@ -89,7 +89,7 @@ export default function CertificationGuide() {
             ))}
           </div>
 
-          <div className="border border-border border-l-4 border-l-primary bg-[#f9fafb] rounded-[2px] p-4 text-xs text-muted-foreground mb-8">
+          <div className="border border-border border-l-4 border-l-primary bg-[#f9fafb] dark:bg-secondary/30 rounded-[2px] p-4 text-xs text-muted-foreground mb-8">
             <span className="font-semibold text-foreground">Note:</span> Certification requirements may vary depending on the applicable Indian Standard and product category. Applicants should refer to BIS guidelines for detailed requirements.
           </div>
 
@@ -99,7 +99,7 @@ export default function CertificationGuide() {
             <h2 className="text-lg font-semibold text-foreground mb-4">BIS Certification Schemes</h2>
             <div className="grid md:grid-cols-2 gap-4">
               {schemes.map((s) => (
-                <div key={s.name} className="border border-border bg-white rounded-[2px] p-4">
+                <div key={s.name} className="border border-border bg-white dark:bg-card rounded-[2px] p-4">
                   <h3 className="text-sm font-semibold text-foreground">{s.name}</h3>
                   <p className="text-muted-foreground text-xs mt-1">{s.description}</p>
                   <p className="text-[11px] text-muted-foreground mt-2">Scheme Type: {s.type}</p>
@@ -113,7 +113,7 @@ export default function CertificationGuide() {
           </p>
 
           {/* CTA */}
-          <Card className="border border-border rounded-[2px] bg-white">
+          <Card className="border border-border rounded-[2px] bg-white dark:bg-card">
             <CardContent className="p-6 text-left">
               <MessageSquare className="h-8 w-8 text-primary mx-auto mb-3" />
               <h3 className="text-xl font-bold text-foreground mb-2">Have questions about certification?</h3>

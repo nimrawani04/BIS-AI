@@ -35,7 +35,7 @@ function GovUtilityBar() {
 // Main GoI identity banner
 function GovBanner() {
   return (
-    <div className="w-full bg-white border-b-2 border-primary/20 py-2 px-4">
+    <div className="w-full bg-white dark:bg-card border-b-2 border-primary/20 py-2 px-4">
       <div className="max-w-7xl mx-auto flex items-center gap-4">
         {/* Emblem */}
         <div className="flex items-center gap-3 shrink-0">

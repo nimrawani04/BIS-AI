@@ -491,7 +491,7 @@ export function IndiaRiskMap({ standalone = false }: { standalone?: boolean }) {
 
         {/* Data source — impresses judges */}
         <div className="mt-4 px-1">
-          <div className="flex flex-wrap items-center gap-3 border border-border bg-white rounded-[4px] px-3 py-2">
+          <div className="flex flex-wrap items-center gap-3 border border-border bg-white dark:bg-card rounded-[4px] px-3 py-2">
             <div className="flex items-center gap-2">
               <Database className="h-3.5 w-3.5 text-primary shrink-0" />
               <span className="text-[10px] text-foreground/70 font-semibold uppercase tracking-wide">Data Sources:</span>

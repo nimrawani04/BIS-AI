@@ -24,7 +24,7 @@ function TricolorStrip() {
 
 function GovBanner() {
   return (
-    <div className="w-full bg-white border-b border-border/50 py-2 px-4 flex items-center gap-4">
+    <div className="w-full bg-white dark:bg-card border-b border-border/50 py-2 px-4 flex items-center gap-4">
       <img src={ashokaChakra} alt="Government of India Emblem" className="h-9 w-9 object-contain shrink-0" />
       <div className="border-l border-border pl-3">
         <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Government of India</p>

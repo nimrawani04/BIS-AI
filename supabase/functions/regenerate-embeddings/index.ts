@@ -42,9 +42,9 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
-    
+
     if (!geminiApiKey) {
-      return new Response(JSON.stringify({ error: "GEMINI_API_KEY not configured" }), {
+      return new Response(JSON.stringify({ error: "GEMINI_API_KEY not configured (needed for embeddings)" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

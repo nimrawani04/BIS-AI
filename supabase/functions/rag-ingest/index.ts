@@ -88,17 +88,19 @@ function chunkText(text: string, maxTokens = 400, overlap = 80, minTokens = 40):
 }
 
 async function generateEmbedding(text: string, apiKey: string): Promise<number[]> {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "models/text-embedding-004", content: { parts: [{ text }] } }),
-    }
-  );
-  if (!res.ok) throw new Error(`Embedding API error: ${res.status}`);
+  const res = await fetch("https://api.jina.ai/v1/embeddings", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "jina-embeddings-v4",
+      input: [{ text }],
+      dimensions: 768,
+      task: "retrieval.passage",
+    }),
+  });
+  if (!res.ok) throw new Error(`Jina embedding API error: ${res.status}`);
   const data = await res.json();
-  return data.embedding.values;
+  return data.data[0].embedding;
 }
 
 async function generateEmbeddingsBatch(texts: string[], apiKey: string, batchSize = 5): Promise<number[][]> {
@@ -115,7 +117,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    const jinaApiKey = Deno.env.get("JINA_API_KEY");
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { documents } = await req.json();
@@ -155,9 +157,9 @@ serve(async (req) => {
       totalSkipped += chunks.length - uniqueChunks.length;
 
       let embeddings: number[][] = [];
-      if (geminiApiKey) {
+      if (jinaApiKey) {
         try {
-          embeddings = await generateEmbeddingsBatch(uniqueChunks.map(c => c.chunk), geminiApiKey);
+          embeddings = await generateEmbeddingsBatch(uniqueChunks.map(c => c.chunk), jinaApiKey);
         } catch (e) { console.error("Embedding error:", e); }
       }
 
@@ -188,7 +190,7 @@ serve(async (req) => {
       success: true,
       chunks_created: totalChunks,
       chunks_skipped_duplicate: totalSkipped,
-      embeddings_generated: !!geminiApiKey,
+      embeddings_generated: !!jinaApiKey,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("rag-ingest error:", e);

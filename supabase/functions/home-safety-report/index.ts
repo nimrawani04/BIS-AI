@@ -39,7 +39,7 @@ serve(async (req) => {
       });
     }
 
-    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") || "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";
+    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
     if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY is not configured");
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {

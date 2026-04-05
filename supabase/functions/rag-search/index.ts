@@ -13,20 +13,22 @@ const CONFIDENCE_THRESHOLD = 0.25; // below this → no chunks returned (rag.md 
 
 type ChunkMeta = { url: string; title: string; snippet: string; content_type: "webpage" | "pdf" | "table" };
 
-// ── Query embedding (Gemini text-embedding-004 → 768-d) ──────────────────────
+// ── Query embedding (Jina jina-embeddings-v4 → 768-d) ────────────────────────
 async function generateQueryEmbedding(text: string, apiKey: string): Promise<number[] | null> {
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "models/text-embedding-004", content: { parts: [{ text }] } }),
-      }
-    );
+    const res = await fetch("https://api.jina.ai/v1/embeddings", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "jina-embeddings-v4",
+        input: [{ text }],
+        dimensions: 768,
+        task: "retrieval.query",
+      }),
+    });
     if (!res.ok) return null;
     const data = await res.json();
-    return data.embedding?.values ?? null;
+    return data.data?.[0]?.embedding ?? null;
   } catch { return null; }
 }
 
@@ -187,8 +189,8 @@ serve(async (req) => {
       });
     }
 
-    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") || "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";
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+    const JINA_API_KEY = Deno.env.get("JINA_API_KEY");
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -203,8 +205,8 @@ serve(async (req) => {
     let searchMode = "none";
 
     // ── Step 1: Retrieve 15 candidates (rag.md §8) ────────────────────────────
-    if (GEMINI_API_KEY && searchQuery) {
-      const embedding = await generateQueryEmbedding(searchQuery, GEMINI_API_KEY);
+    if (JINA_API_KEY && searchQuery) {
+      const embedding = await generateQueryEmbedding(searchQuery, JINA_API_KEY);
       if (embedding) {
         const { data, error } = await supabase.rpc("search_bis_chunks_hybrid", {
           search_query: searchQuery,

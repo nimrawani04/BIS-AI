@@ -7,30 +7,27 @@ const corsHeaders = {
 };
 
 /**
- * Generate embedding using Gemini
+ * Generate embedding using Jina jina-embeddings-v4
  */
 async function generateEmbedding(text: string, apiKey: string): Promise<number[]> {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "models/text-embedding-004",
-        content: {
-          parts: [{ text }]
-        }
-      })
-    }
-  );
+  const response = await fetch("https://api.jina.ai/v1/embeddings", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "jina-embeddings-v4",
+      input: [{ text }],
+      dimensions: 768,
+      task: "retrieval.passage",
+    }),
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Gemini embedding API error: ${response.status} - ${errorText}`);
+    throw new Error(`Jina embedding API error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
-  return data.embedding.values;
+  return data.data[0].embedding;
 }
 
 serve(async (req) => {
@@ -41,10 +38,10 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    const jinaApiKey = Deno.env.get("JINA_API_KEY");
 
-    if (!geminiApiKey) {
-      return new Response(JSON.stringify({ error: "GEMINI_API_KEY not configured (needed for embeddings)" }), {
+    if (!jinaApiKey) {
+      return new Response(JSON.stringify({ error: "JINA_API_KEY not configured (needed for embeddings)" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -82,7 +79,7 @@ serve(async (req) => {
     // Process chunks one by one to avoid rate limits
     for (const chunk of chunks) {
       try {
-        const embedding = await generateEmbedding(chunk.content, geminiApiKey);
+        const embedding = await generateEmbedding(chunk.content, jinaApiKey);
         
         const { error: updateError } = await supabase
           .from('bis_knowledge_chunks')

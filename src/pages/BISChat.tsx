@@ -161,6 +161,7 @@ export default function BISChat() {
     setLastAnalysis(null);
     setImagePreview(null);
     setUploadedFile(null);
+    toast.info('Started a new conversation');
   };
 
   const loadChat = (session: ChatSession) => {
@@ -584,7 +585,17 @@ Provide JSON format exclusively: {"productName": "...", "brand": "...", "categor
                 </ul>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-[1px] text-muted-foreground mb-2">History</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] uppercase tracking-[1px] text-muted-foreground">History</p>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 px-1 text-[10px] text-primary hover:bg-primary/5"
+                    onClick={startNewChat}
+                  >
+                    + New
+                  </Button>
+                </div>
                 <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                   {chatHistory.length === 0 ? (
                     <p className="text-xs text-muted-foreground">No recent conversations.</p>
@@ -776,8 +787,45 @@ Provide JSON format exclusively: {"productName": "...", "brand": "...", "categor
                 </p>
 
                 {messages.length === 0 && (
-                  <div className="mt-3 border border-border bg-white dark:bg-secondary/20 rounded-[2px] p-4 text-sm text-muted-foreground">
-                    Enter a question above to view the official BIS knowledge response here.
+                  <div className="mt-4 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div 
+                        className="p-4 border border-border bg-white hover:border-primary/50 cursor-pointer transition-all rounded-[4px] group"
+                        onClick={() => sendMessage("How can I verify an ISI mark on a product?")}
+                      >
+                        <h3 className="text-sm font-bold text-foreground group-hover:text-primary mb-1">Verify Certification</h3>
+                        <p className="text-xs text-muted-foreground">Learn how to use the BIS Care App and verify R-numbers or CM/L numbers.</p>
+                      </div>
+                      <div 
+                        className="p-4 border border-border bg-white hover:border-primary/50 cursor-pointer transition-all rounded-[4px] group"
+                        onClick={() => sendMessage("What are the mandatory products under BIS certification?")}
+                      >
+                        <h3 className="text-sm font-bold text-foreground group-hover:text-primary mb-1">Mandatory Products</h3>
+                        <p className="text-xs text-muted-foreground">Check the list of electronics, steel, and toys under compulsory certification.</p>
+                      </div>
+                      <div 
+                        className="p-4 border border-border bg-white hover:border-primary/50 cursor-pointer transition-all rounded-[4px] group"
+                        onClick={() => sendMessage("Tell me about the Gold Hallmarking process in India.")}
+                      >
+                        <h3 className="text-sm font-bold text-foreground group-hover:text-primary mb-1">Gold Hallmarking</h3>
+                        <p className="text-xs text-muted-foreground">Understand the symbols on Your gold jewelry (HUID, BIS logo, Purity).</p>
+                      </div>
+                      <div 
+                        className="p-4 border border-border bg-white hover:border-primary/50 cursor-pointer transition-all rounded-[4px] group"
+                        onClick={() => sendMessage("What is the process to apply for a new BIS license?")}
+                      >
+                        <h3 className="text-sm font-bold text-foreground group-hover:text-primary mb-1">New Application</h3>
+                        <p className="text-xs text-muted-foreground">Step-by-step guide for manufacturers to register on ManakOnline.</p>
+                      </div>
+                    </div>
+
+                    <div className="border border-dashed border-border rounded-[4px] p-8 text-center bg-secondary/10">
+                      <Send className="h-8 w-8 text-primary/30 mx-auto mb-3" />
+                      <h2 className="text-lg font-bold text-foreground mb-2">Ready to assist you</h2>
+                      <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                        Type your question above or upload a product photo to begin. I can answer in English, Hindi, and 7 other regional languages.
+                      </p>
+                    </div>
                   </div>
                 )}
 

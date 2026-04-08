@@ -158,7 +158,7 @@ const INDIA_TOPOJSON = '/india-states.json';
 
 // Map state name to city risk for heatmap
 const stateNameToCity: Record<string, string> = {
-  Delhi: 'delhi',
+  'NCT of Delhi': 'delhi',
   Maharashtra: 'mumbai',
   'West Bengal': 'kolkata',
   'Uttar Pradesh': 'lucknow',
@@ -169,7 +169,7 @@ const stateNameToCity: Record<string, string> = {
   Chandigarh: 'chandigarh',
   Punjab: 'chandigarh',
   Haryana: 'chandigarh',
-  'Jammu and Kashmir': 'srinagar',
+  'Jammu & Kashmir': 'srinagar',
   Karnataka: 'bangalore',
   'Tamil Nadu': 'chennai',
 };

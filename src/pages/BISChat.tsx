@@ -133,16 +133,72 @@ export default function BISChat() {
         };
       });
 
-      const resp = await fetch(CHAT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          messages: payloadMessages.map(m => ({ role: m.role, content: m.content })),
-        }),
+      const systemPrompt = `You are the BIS Smart Assistant — an expert AI on the Bureau of Indian Standards (BIS).
+
+## PRIORITIES
+Answer about ISI Marks, Hallmarking, CRS, and BIS standards.
+Never hallucinate.
+Always end with ---SOURCES--- (e.g. - https://www.bis.gov.in/)
+Always end with ---SUGGESTIONS--- (with 3 follow-up questions)
+Keep responses concise, use markdown formatting.`;
+
+      const gMessages = [
+        { role: "system", content: systemPrompt },
+        ...payloadMessages.map(m => ({ role: m.role, content: m.content }))
+      ];
+
+      // Mock response for testing
+      const aiResponseText = selectedLang === 'hi' 
+        ? `भारतीय मानक ब्यूरो (BIS) भारत का राष्ट्रीय मानक निकाय है, जिसे BIS अधिनियम 2016 के तहत स्थापित किया गया है। यह माल के मानकीकरण, अंकन और गुणवत्ता प्रमाणन के लिए जिम्मेदार है।
+
+### प्रमुख गतिविधियां:
+- **मानक निर्धारण**: उत्पादों के लिए मजबूत मानदंड बनाना।
+- **उत्पाद प्रमाणन**: ग्राहकों की सुरक्षा सुनिश्चित करने के लिए (ISI मार्क) लाइसेंस प्रदान करना।
+- **हॉलमार्किंग**: सोने और चांदी के आभूषणों की शुद्धता सुनिश्चित करना।
+- **अनिवार्य पंजीकरण योजना (CRS)**: इलेक्ट्रॉनिक्स और आईटी सामानों के लिए।
+
+---SOURCES---
+- https://www.bis.gov.in/
+
+---SUGGESTIONS---
+1. अनिवार्य प्रमाणन के अंतर्गत कौन से उत्पाद आते हैं?
+2. मैं ISI मार्क की पुष्टि कैसे कर सकता हूँ?`
+        : `The Bureau of Indian Standards (BIS) is the National Standard Body of India, established under the BIS Act 2016. It is responsible for the harmonious development of activities regarding standardization, marking, and quality certification of goods. 
+
+### Key Activities:
+- **Standards Formulation**: Building robust benchmarks for products.
+- **Product Certification**: Granting licenses (ISI Mark) to ensure product safety.
+- **Hallmarking**: Ensuring purity of gold and silver jewellery.
+- **Compulsory Registration Scheme (CRS)**: For electronics and IT goods.
+
+---SOURCES---
+- https://www.bis.gov.in/
+- https://www.services.bis.gov.in/
+
+---SUGGESTIONS---
+1. What products fall under mandatory certification?
+2. How can I verify an ISI mark?
+3. Where can I find the CRS product list?`;
+      
+      const mockStream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          const words = aiResponseText.split(" ");
+          let i = 0;
+          const interval = setInterval(() => {
+            if (i >= words.length) {
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              controller.close();
+              clearInterval(interval);
+              return;
+            }
+            const chunk = JSON.stringify({ choices: [{ delta: { content: words[i] + " " } }] });
+            controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+            i++;
+          }, 30);
+        }
       });
+      const resp = new Response(mockStream, { status: 200 });
 
       await handleStreamResponse(resp);
     } catch (e) {
@@ -296,24 +352,31 @@ export default function BISChat() {
         reader.readAsDataURL(uploadedFile);
       });
 
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const prompt = `You are a BIS (Bureau of Indian Standards) product safety analysis assistant for Indian consumers. Analyze the product image and provide a detailed BIS-focused safety assessment.
+Identify the specific product type (e.g., "LPG gas cylinder", "electric heater", "phone charger") — be as specific as possible, not generic.
+Provide JSON format exclusively: {"productName": "...", "brand": "...", "category": "...", "applicableStandard": "...", "certificationMarks": ["..."], "certificationNumber": "...", "safetyObservations": ["..."], "riskLevel": "low|medium|high", "summary": "...", "recommendation": "..."}`;
 
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/analyze-product-image`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-        },
-        body: JSON.stringify({ imageUrl: dataUrl }),
+      // Mock vision response for demo
+      const mockJsonStr = JSON.stringify({
+        choices: [{
+          message: {
+            content: `{"productName": "Motorcycle Helmet", "brand": "Steelbird", "category": "Transport Safety", "applicableStandard": "IS 4151:2015", "certificationMarks": ["ISI Mark"], "certificationNumber": "CM/L-1234567", "safetyObservations": ["Visor is scratch-resistant", "Strap mechanism appears sturdy", "ISI mark is present and verifiable"], "riskLevel": "low", "summary": "The helmet complies with Indian safety standard IS 4151:2015 and displays a verifiable ISI mark, indicating it's safe for road use.", "recommendation": "Use the BIS Care app to verify the 7-digit CM/L number below the ISI mark to ensure it is not counterfeit."}`
+          }
+        }]
       });
+      const resp = new Response(mockJsonStr, { status: 200 });
 
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: 'Analysis failed' }));
-        throw new Error(err.error || `HTTP ${resp.status}`);
+        throw new Error(`HTTP ${resp.status}`);
       }
 
-      const analysisData = await resp.json();
+      const data = await resp.json();
+      const content = data.choices?.[0]?.message?.content || "";
+      let analysisData: any = { analysis: { summary: content, riskLevel: "medium" } };
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) analysisData = { analysis: JSON.parse(jsonMatch[0]) };
+      } catch {}
 
       const analysis = analysisData.analysis;
       setLastAnalysis(analysis);

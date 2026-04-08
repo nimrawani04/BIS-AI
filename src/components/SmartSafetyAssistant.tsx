@@ -64,14 +64,73 @@ function OnlineSafetyAssistant() {
     setResponse('');
 
     try {
-      const resp = await fetch(CHAT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ query: trimmed }),
+      const systemPrompt = `You are the ISI Guardian Smart Safety Assistant — an expert on Indian product safety standards and BIS (Bureau of Indian Standards) certifications.
+
+When a user asks about a product (e.g. "helmet", "pressure cooker", "electric heater", "extension board"), respond with a structured pre-purchase safety guide in this exact markdown format:
+
+## 🛡️ [Product Name] Buying Guide
+
+### Required Certification
+State the required ISI/BIS mark and the relevant Indian Standard number (e.g. IS 4151:2015 for helmets).
+
+### ✅ Check These Before Buying
+List 5-7 specific safety checks as a checklist using "- ✔" format. Be practical and specific.
+
+### ⚠️ Red Flags to Watch For
+List 3-5 warning signs of fake or unsafe products using "- ⚠" format.
+
+### 💡 Pro Tips
+Give 2-3 practical buying tips specific to Indian markets (online and offline).
+
+### 📋 Quick Verdict
+One short paragraph summarizing: always buy ISI-certified, check for [key things], and avoid [key risks].
+
+Keep responses concise, practical, and focused on Indian consumer safety. If the product doesn't require BIS certification, mention that but still provide general safety guidance. If the query is not about a product, politely redirect to product safety topics.`;
+
+      // Mock API call to simulate AI for demonstration without a valid API Key
+      const aiResponse = `## 🛡️ Pre-Purchase Buying Guide
+
+### Required Certification
+The mandatory certification is the ISI mark (IS standard). Always verify this mark and the associated registration number on the BIS Care App.
+
+### ✅ Check These Before Buying
+- ✔ Verify the ISI Mark is permanently affixed.
+- ✔ Check for a valid 7-digit CM/L number.
+- ✔ Ensure packaging is intact without tampering.
+- ✔ Buy only from authorized dealers.
+- ✔ Look for proper safety labeling and warnings.
+
+### ⚠️ Red Flags to Watch For
+- ⚠ Generic brand names with no manufacturer details.
+- ⚠ Missing ISI mark or blurry logo printing.
+- ⚠ Unusually low price compared to certified equivalents.
+
+### 💡 Pro Tips
+Always ask for a proper GST invoice. You can scan the ISI logo using the BIS Care App to instantly verify the manufacturer.
+
+### 📋 Quick Verdict
+Only buy products carrying a valid, verifiable ISI certification mark to ensure user safety and standards compliance.`;
+      
+      const mockStream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          const words = aiResponse.split(" ");
+          let i = 0;
+          const interval = setInterval(() => {
+            if (i >= words.length) {
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              controller.close();
+              clearInterval(interval);
+              return;
+            }
+            const chunk = JSON.stringify({ choices: [{ delta: { content: words[i] + " " } }] });
+            controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+            i++;
+          }, 30);
+        }
       });
+
+      const resp = new Response(mockStream, { status: 200 });
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: 'Request failed' }));

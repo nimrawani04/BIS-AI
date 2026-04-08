@@ -58,11 +58,11 @@ ${candidateList}
 
 Return ONLY the JSON array, nothing else.`;
 
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const res = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "grok-beta",
         messages: [{ role: "user", content: prompt }],
         temperature: 0,
         max_tokens: 50,
@@ -309,11 +309,11 @@ serve(async (req) => {
     }
 
     // ── Step 4: Generate answer (rag.md §10) ──────────────────────────────────
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "grok-beta",
         stream: true,
         messages: [
           { role: "system", content: finalPrompt },

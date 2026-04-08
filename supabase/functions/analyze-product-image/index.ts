@@ -66,14 +66,14 @@ Respond in JSON format:
       imageContent = { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } };
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "grok-beta",
         messages: [
           {
             role: "user",

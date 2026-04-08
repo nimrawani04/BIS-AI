@@ -1,4 +1,4 @@
-ï»¿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -12,7 +12,7 @@ async function sha256(text: string): Promise<string> {
 }
 
 /**
- * Parse scraper header contract (rag.md Â§5).
+ * Parse scraper header contract (rag.md §5).
  * Every document produced by crawl-bis starts with:
  *   Source URL: https://...
  *   Page Title: ...
@@ -47,7 +47,7 @@ function parseDocumentHeaders(content: string, fallbackUrl?: string, fallbackTit
 }
 
 /**
- * Chunk text (rag.md Â§6): 400 tokens, 80 overlap, drop chunks < 40 tokens.
+ * Chunk text (rag.md §6): 400 tokens, 80 overlap, drop chunks < 40 tokens.
  */
 function chunkText(text: string, maxTokens = 400, overlap = 80, minTokens = 40): string[] {
   const lines = text.split("\n");
@@ -134,7 +134,7 @@ serve(async (req) => {
       const { url: docUrl, title: docTitle, content_type, content } = doc;
       if (!content) continue;
 
-      // Parse scraper header contract (rag.md Â§5)
+      // Parse scraper header contract (rag.md §5)
       const { sourceUrl, pageTitle, dateScraped, body } = parseDocumentHeaders(content, docUrl, docTitle);
       const effectiveUrl = sourceUrl || docUrl || null;
       const effectiveTitle = pageTitle || docTitle || effectiveUrl || "Untitled";
@@ -142,10 +142,10 @@ serve(async (req) => {
       const chunks = chunkText(body || content);
       if (chunks.length === 0) continue;
 
-      // Compute content_hash for deduplication (rag.md Â§6, Â§7)
+      // Compute content_hash for deduplication (rag.md §6, §7)
       const hashes = await Promise.all(chunks.map(c => sha256(c)));
 
-      // Deduplicate within this batch before inserting (rag.md Â§7)
+      // Deduplicate within this batch before inserting (rag.md §7)
       const seen = new Set<string>();
       const uniqueChunks: { chunk: string; hash: string; index: number }[] = [];
       for (let i = 0; i < chunks.length; i++) {
@@ -174,7 +174,7 @@ serve(async (req) => {
         embedding: embeddings[i] || null,
       }));
 
-      // Upsert â€” skip rows whose content_hash already exists (rag.md Â§7)
+      // Upsert — skip rows whose content_hash already exists (rag.md §7)
       const { error } = await supabase
         .from("bis_knowledge_chunks")
         .upsert(rows, { onConflict: "content_hash", ignoreDuplicates: true });

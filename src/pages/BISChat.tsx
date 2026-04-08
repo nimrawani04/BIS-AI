@@ -16,6 +16,13 @@ type Message = {
   content: string;
 };
 
+type ChatSession = {
+  id: string;
+  title: string;
+  messages: Message[];
+  timestamp: number;
+};
+
 const exampleQuestions = [
   'What BIS standards apply to electric heaters?',
   'How can I verify a BIS certification number?',
@@ -97,9 +104,69 @@ export default function BISChat() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState<any>(null);
+  const [responseMode, setResponseMode] = useState<'simple' | 'detailed'>(() => {
+    return (localStorage.getItem('bis-chat-mode') as 'simple' | 'detailed') || 'simple';
+  });
+  const [chatHistory, setChatHistory] = useState<ChatSession[]>(() => {
+    const saved = localStorage.getItem('bis-chat-history');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialQueryHandled = useRef(false);
+
+  // Sync history to localStorage
+  useEffect(() => {
+    localStorage.setItem('bis-chat-history', JSON.stringify(chatHistory));
+  }, [chatHistory]);
+
+  const saveToHistory = (msgs: Message[]) => {
+    if (msgs.length === 0) return;
+    
+    setChatHistory(prev => {
+      const id = currentChatId || Date.now().toString();
+      const title = msaveTitle(msgs);
+      const existingIdx = prev.findIndex(h => h.id === id);
+      
+      const newSession: ChatSession = {
+        id,
+        title,
+        messages: msgs,
+        timestamp: Date.now()
+      };
+
+      if (!currentChatId) setCurrentChatId(id);
+
+      if (existingIdx !== -1) {
+        const updated = [...prev];
+        updated[existingIdx] = newSession;
+        return updated.sort((a,b) => b.timestamp - a.timestamp);
+      }
+      return [newSession, ...prev].sort((a,b) => b.timestamp - a.timestamp);
+    });
+  };
+
+  const msaveTitle = (msgs: Message[]) => {
+    const firstUserMsg = msgs.find(m => m.role === 'user');
+    if (!firstUserMsg) return 'New Chat';
+    return firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '');
+  };
+
+  const startNewChat = () => {
+    setMessages([]);
+    setCurrentChatId(null);
+    setInput('');
+    setLastAnalysis(null);
+    setImagePreview(null);
+    setUploadedFile(null);
+  };
+
+  const loadChat = (session: ChatSession) => {
+    setMessages(session.messages);
+    setCurrentChatId(session.id);
+  };
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -134,42 +201,91 @@ export default function BISChat() {
       });
 
       const systemPrompt = `You are the BIS Smart Assistant — an expert AI on the Bureau of Indian Standards (BIS).
+Current Mode: ${responseMode.toUpperCase()}
+Selected Language: ${selectedLang}
 
 ## PRIORITIES
 Answer about ISI Marks, Hallmarking, CRS, and BIS standards.
 Never hallucinate.
 Always end with ---SOURCES--- (e.g. - https://www.bis.gov.in/)
 Always end with ---SUGGESTIONS--- (with 3 follow-up questions)
-Keep responses concise, use markdown formatting.`;
 
+## MODE INSTRUCTIONS
+${responseMode === 'simple' 
+  ? 'SIMPLE MODE: Provide short, direct answers in easy-to-understand language. Avoid technical jargon. Keep it under 100 words.' 
+  : 'DETAILED MODE: Provide comprehensive, well-explained answers. Include technical details, clauses if known, and structured explanations. No word limit.'}
+
+## CONTEXT AWARENESS
+You are part of a conversational history. Use previous messages to understand context and follow-up questions. If the user asks something like "How does it work?" referring to a previously mentioned standard, answer based on that standard.
+
+Keep responses concise, use markdown formatting.`;
       const gMessages = [
         { role: "system", content: systemPrompt },
         ...payloadMessages.map(m => ({ role: m.role, content: m.content }))
       ];
-
-      // Mock response for testing
-      const aiResponseText = selectedLang === 'hi' 
-        ? `भारतीय मानक ब्यूरो (BIS) भारत का राष्ट्रीय मानक निकाय है, जिसे BIS अधिनियम 2016 के तहत स्थापित किया गया है। यह माल के मानकीकरण, अंकन और गुणवत्ता प्रमाणन के लिए जिम्मेदार है।
-
-### प्रमुख गतिविधियां:
-- **मानक निर्धारण**: उत्पादों के लिए मजबूत मानदंड बनाना।
-- **उत्पाद प्रमाणन**: ग्राहकों की सुरक्षा सुनिश्चित करने के लिए (ISI मार्क) लाइसेंस प्रदान करना।
-- **हॉलमार्किंग**: सोने और चांदी के आभूषणों की शुद्धता सुनिश्चित करना।
-- **अनिवार्य पंजीकरण योजना (CRS)**: इलेक्ट्रॉनिक्स और आईटी सामानों के लिए।
+      // Mock response for testing - varies based on Mode and Language
+      let aiResponseText = "";
+      
+      if (selectedLang === 'hi') {
+        if (responseMode === 'simple') {
+          aiResponseText = `भारतीय मानक ब्यूरो (BIS) भारत का राष्ट्रीय मानक निकाय है।
+यह उत्पादों की गुणवत्ता सुनिश्चित करने के लिए ISI मार्क प्रदान करता है।
+यह सोने और चांदी के आभूषणों की शुद्धता के लिए हॉलमार्किंग का संचालन करता है।
+इसका मुख्य उद्देश्य उपभोक्ताओं को सुरक्षित और प्रमाणित उत्पाद उपलब्ध कराना है।
 
 ---SOURCES---
 - https://www.bis.gov.in/
 
 ---SUGGESTIONS---
-1. अनिवार्य प्रमाणन के अंतर्गत कौन से उत्पाद आते हैं?
-2. मैं ISI मार्क की पुष्टि कैसे कर सकता हूँ?`
-        : `The Bureau of Indian Standards (BIS) is the National Standard Body of India, established under the BIS Act 2016. It is responsible for the harmonious development of activities regarding standardization, marking, and quality certification of goods. 
+1. ISI मार्क क्या है?
+2. हॉलमार्किंग कैसे देखें?`;
+        } else {
+          aiResponseText = `भारतीय मानक ब्यूरो (BIS) अधिनियम 2016 के तहत स्थापित भारत का राष्ट्रीय मानक निकाय है। यह उपभोक्ता मामलों के मंत्रालय के तत्वावधान में कार्य करता है।
 
-### Key Activities:
-- **Standards Formulation**: Building robust benchmarks for products.
-- **Product Certification**: Granting licenses (ISI Mark) to ensure product safety.
-- **Hallmarking**: Ensuring purity of gold and silver jewellery.
-- **Compulsory Registration Scheme (CRS)**: For electronics and IT goods.
+मुख्य गतिविधियां और विवरण:
+1. **मानक निर्धारण**: यह विभिन्न उत्पादों के लिए भारतीय मानक (IS) विकसित करता है।
+2. **उत्पाद प्रमाणन**: ISI मार्क के माध्यम से उत्पादों की सुरक्षा और गुणवत्ता की गारंटी देता है।
+3. **हॉलमार्किंग**: आभूषणों पर सोने की शुद्धता सुनिश्चित करने के लिए अनिवार्य हॉलमार्किंग लागू करता है।
+4. **लैब नेटवर्क**: गुणवत्ता की जांच के लिए देश भर में परीक्षण प्रयोगशालाओं का संचालन करता है।
+5. **उपभोक्ता सुरक्षा**: घटिया गुणवत्ता वाले उत्पादों के खिलाफ उपभोक्ताओं के हितों की रक्षा करता है।
+6. **अंतर्राष्ट्रीय सहयोग**: ISO जैसे वैश्विक संगठनों में भारत का प्रतिनिधित्व करता है।
+
+यह संगठन भारतीय अर्थव्यवस्था में गुणवत्ता संस्कृति को बढ़ावा देने में अत्यंत महत्वपूर्ण भूमिका निभाता है।
+
+---SOURCES---
+- https://www.bis.gov.in/about-bis/
+- https://www.services.bis.gov.in/
+
+---SUGGESTIONS---
+1. अनिवार्य प्रमाणन के अंतर्गत कौन से उत्पाद आते हैं?
+2. मैं ISI मार्क की पुष्टि कैसे कर सकता हूँ?
+3. BIS लाइसेंस के लिए आवेदन कैसे करें?`;
+        }
+      } else {
+        if (responseMode === 'simple') {
+          aiResponseText = `The Bureau of Indian Standards (BIS) is the national standards body of India.
+It ensures product safety and quality by granting the prestigious ISI Mark.
+It is responsible for the hallmarking of gold and silver to protect consumers.
+BIS helps in the harmonious development of standardization activities across the country.
+
+---SOURCES---
+- https://www.bis.gov.in/
+
+---SUGGESTIONS---
+1. What is an ISI mark?
+2. How to check for Hallmarking?`;
+        } else {
+          aiResponseText = `The Bureau of Indian Standards (BIS) is the National Standard Body of India, established under the BIS Act 2016. It operates under the Ministry of Consumer Affairs, Food and Public Distribution.
+
+Key Responsibilities and Full Details:
+- **Standards Formulation**: Developing Indian Standards (IS) for over 20,000 products to ensure safety and performance.
+- **Product Certification**: Managing the ISI Mark scheme, which is mandatory for critical products like steel, cement, and electronics.
+- **Hallmarking Scheme**: Protecting consumers by ensuring the purity of precious metals like gold and silver through mandatory hallmarking.
+- **Testing & Calibration**: Running a network of laboratories across India to test products against established quality benchmarks.
+- **Compulsory Registration (CRS)**: Regulating IT and electronics products to meet global quality and safety norms for Indian users.
+- **International Representation**: Representing India in international forums like ISO and IEC to align Indian standards with global trends.
+
+Through these diverse activities, BIS ensures that Indian consumers receive safe, reliable, and high-quality products while enhancing the export potential of Indian goods.
 
 ---SOURCES---
 - https://www.bis.gov.in/
@@ -179,7 +295,9 @@ Keep responses concise, use markdown formatting.`;
 1. What products fall under mandatory certification?
 2. How can I verify an ISI mark?
 3. Where can I find the CRS product list?`;
-      
+        }
+      }
+
       const mockStream = new ReadableStream({
         start(controller) {
           const encoder = new TextEncoder();
@@ -225,7 +343,10 @@ Keep responses concise, use markdown formatting.`;
     let buffer = '';
     let accumulated = '';
 
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+    setMessages(prev => {
+      const updated: Message[] = [...prev, { role: 'assistant', content: '' }];
+      return updated;
+    });
 
     while (true) {
       const { done, value } = await reader.read();
@@ -246,7 +367,13 @@ Keep responses concise, use markdown formatting.`;
           const content = parsed.choices?.[0]?.delta?.content;
           if (content) {
             accumulated += content;
-            setMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, content: accumulated } : m));
+            setMessages(prev => {
+              const updated = prev.map((m, i) => i === prev.length - 1 ? { ...m, content: accumulated } : m);
+              if (done || accumulated.length > 0) {
+                 // Optimization: only save to persistent history periodically or at end
+              }
+              return updated;
+            });
           }
         } catch {
           buffer = line + '\n' + buffer;
@@ -254,6 +381,12 @@ Keep responses concise, use markdown formatting.`;
         }
       }
     }
+    
+    // Final save to history
+    setMessages(prev => {
+      saveToHistory(prev);
+      return prev;
+    });
   };
 
   useEffect(() => {
@@ -276,6 +409,11 @@ Keep responses concise, use markdown formatting.`;
   const handleLangChange = (lang: SupportedLanguage) => {
     setSelectedLang(lang);
     localStorage.setItem('bis-chat-lang', lang);
+  };
+
+  const handleModeChange = (mode: 'simple' | 'detailed') => {
+    setResponseMode(mode);
+    localStorage.setItem('bis-chat-mode', mode);
   };
 
   const handleVoiceInput = () => {
@@ -446,8 +584,42 @@ Provide JSON format exclusively: {"productName": "...", "brand": "...", "categor
                 </ul>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-[1px] text-muted-foreground mb-2">Recent Questions</p>
-                <p className="text-xs text-muted-foreground">No recent questions yet.</p>
+                <p className="text-[11px] uppercase tracking-[1px] text-muted-foreground mb-2">History</p>
+                <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                  {chatHistory.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No recent conversations.</p>
+                  ) : (
+                    chatHistory.map((chat) => (
+                      <button
+                        key={chat.id}
+                        onClick={() => loadChat(chat)}
+                        className={`w-full text-left text-xs p-2 rounded-[2px] border group relative ${
+                          currentChatId === chat.id ? 'bg-primary/5 border-primary/20 text-primary' : 'border-transparent hover:bg-secondary/50 text-muted-foreground'
+                        }`}
+                      >
+                        <div className="truncate pr-4">{chat.title}</div>
+                        <div className="text-[9px] opacity-60">
+                          {new Date(chat.timestamp).toLocaleDateString()}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+                {chatHistory.length > 0 && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      if(confirm('Clear all chat history?')) {
+                        setChatHistory([]);
+                        startNewChat();
+                      }
+                    }}
+                    className="w-full mt-2 text-[10px] text-destructive hover:text-destructive h-7"
+                  >
+                    Clear History
+                  </Button>
+                )}
               </div>
             </aside>
 
@@ -460,20 +632,55 @@ Provide JSON format exclusively: {"productName": "...", "brand": "...", "categor
                   AI-powered knowledge service for BIS standards, certification requirements, and regulatory policies.
                 </p>
 
-                <div className="flex items-center gap-2 flex-wrap pt-2">
-                  <Globe className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Language:</span>
-                  {(Object.keys(languageLabels) as SupportedLanguage[]).map((lang) => (
+                <div className="flex items-center gap-4 flex-wrap pt-2">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Language:</span>
+                    {(Object.keys(languageLabels) as SupportedLanguage[]).map((lang) => (
+                      <Button
+                        key={lang}
+                        variant={selectedLang === lang ? 'default' : 'outline'}
+                        size="sm"
+                        className="text-xs px-2 py-1 h-7"
+                        onClick={() => handleLangChange(lang)}
+                      >
+                        {languageLabels[lang]}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2 border-l border-border pl-4">
+                    <span className="text-xs text-muted-foreground">Response Mode:</span>
+                    <div className="flex bg-secondary/30 p-1 rounded-[4px]">
+                      <Button
+                        variant={responseMode === 'simple' ? 'default' : 'ghost'}
+                        size="sm"
+                        className="text-[10px] h-6 px-3"
+                        onClick={() => handleModeChange('simple')}
+                      >
+                        Simple
+                      </Button>
+                      <Button
+                        variant={responseMode === 'detailed' ? 'default' : 'ghost'}
+                        size="sm"
+                        className="text-[10px] h-6 px-3"
+                        onClick={() => handleModeChange('detailed')}
+                      >
+                        Detailed
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="ml-auto">
                     <Button
-                      key={lang}
-                      variant={selectedLang === lang ? 'default' : 'outline'}
+                      variant="outline"
                       size="sm"
-                      className="text-xs px-2 py-1 h-7"
-                      onClick={() => handleLangChange(lang)}
+                      className="text-xs h-8 border-primary/20 text-primary hover:bg-primary/5"
+                      onClick={startNewChat}
                     >
-                      {languageLabels[lang]}
+                      + New Chat
                     </Button>
-                  ))}
+                  </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 pt-2">

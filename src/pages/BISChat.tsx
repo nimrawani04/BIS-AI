@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { useSearchParams } from 'react-router-dom';
-import { languageLabels, type SupportedLanguage } from '@/data/offlineKnowledgeMultilingual';
+import { languageLabels, type SupportedLanguage, searchMultilingualKnowledge } from '@/data/offlineKnowledgeMultilingual';
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rag-search`;
 
@@ -82,39 +82,83 @@ function parseSources(text: string): { body: string; sources: string[] } {
   return { body, sources };
 }
 
-const offlineKnowledge: Record<string, string> = {
-  'what is bis': `The Bureau of Indian Standards (BIS) is the national standards body of India, established under the BIS Act 2016. It operates under the Ministry of Consumer Affairs, Food and Public Distribution. BIS develops Indian Standards, runs product certification (ISI Mark), hallmarking of precious metals, and the Compulsory Registration Scheme (CRS) for electronics.
-
----SOURCES---
-- https://www.bis.gov.in/index.php/about-bis/
-
----SUGGESTIONS---
-- What certification schemes does BIS offer?
-- How to apply for BIS certification?
-- What is ISI mark?`,
-  'how to apply for bis certification': `Steps to apply for BIS certification:
-1. Visit manakonline.bis.gov.in and create an account
-2. Submit online application with documents (test reports, factory details, quality control plan)
-3. BIS reviews and assigns an officer
-4. Factory/premises inspection
-5. Product samples tested at BIS labs
-6. If compliant, license is granted
-7. Annual surveillance and periodic renewal required
-
----SOURCES---
-- https://www.bis.gov.in/index.php/certification/product-certification/
-- https://manakonline.bis.gov.in
-
----SUGGESTIONS---
-- What documents are needed for BIS certification?
-- How long does BIS certification take?
-- What are the fees for BIS certification?`,
+const uiTranslations: Record<SupportedLanguage, any> = {
+  en: {
+    title: 'Ask BIS AI',
+    subtitle: 'BIS AI Knowledge Assistant',
+    description: 'AI-powered service for BIS standards, certification requirements, and regulatory policies.',
+    digitalService: 'Digital Knowledge Service · Government of India',
+    poweredBy: 'Powered by BIS Knowledge Base',
+    newChat: 'New Conversation',
+    topics: 'Knowledge Topics',
+    suggested: 'Suggested Questions',
+    history: 'History',
+    clearHistory: 'Clear all chat history?',
+    noHistory: 'No recent conversations.',
+    language: 'Language',
+    mode: 'Mode',
+    simple: 'Simple',
+    detailed: 'Detailed',
+    placeholder: 'Ask a question about BIS standards or certification procedures...',
+    ask: 'Ask',
+    scanTitle: 'Scan Product — Upload Photo',
+    choosePhoto: 'Choose Photo',
+    photoSpecs: 'JPG / PNG / WebP, max 5 MB',
+    analyseAndAsk: 'Analyse & Ask',
+    analysing: 'Analysing...',
+    photoReady: 'Photo ready for analysis.',
+    aiResponse: 'AI Response',
+    responseSourceText: 'Answers generated from BIS knowledge repository with source references.',
+    yourQuestion: 'Your Question',
+    answerLabel: 'Answer',
+    officialSources: 'Official Sources',
+    generating: 'Generating response from BIS knowledge base...',
+    disclaimer: 'Responses are generated using BIS publications and regulatory documents. Users should verify information through official BIS documentation at',
+    clear: 'Clear',
+    readyToAssist: 'Ready to assist you',
+    typingHelper: 'Type your question above or upload a product photo.',
+  },
+  hi: {
+    title: 'BIS AI से पूछें',
+    subtitle: 'BIS AI ज्ञान सहायक',
+    description: 'BIS मानकों, प्रमाणन आवश्यकताओं और नियामक नीतियों के लिए AI-संचालित सेवा।',
+    digitalService: 'डिजिटल ज्ञान सेवा · भारत सरकार',
+    poweredBy: 'BIS नॉलेज बेस द्वारा संचालित',
+    newChat: 'नई बातचीत',
+    topics: 'ज्ञान के विषय',
+    suggested: 'सुझाए गए प्रश्न',
+    history: 'इतिहास',
+    clearHistory: 'क्या आप सभी चैट इतिहास मिटाना चाहते हैं?',
+    noHistory: 'कोई हालिया बातचीत नहीं।',
+    language: 'भाषा',
+    mode: 'मोड',
+    simple: 'सरल',
+    detailed: 'विस्तृत',
+    placeholder: 'BIS मानकों या प्रमाणन प्रक्रियाओं के बारे में प्रश्न पूछें...',
+    ask: 'पूछें',
+    scanTitle: 'उत्पाद स्कैन करें — फोटो अपलोड करें',
+    choosePhoto: 'फोटो चुनें',
+    photoSpecs: 'JPG / PNG / WebP, अधिकतम 5 MB',
+    analyseAndAsk: 'विश्लेषण करें और पूछें',
+    analysing: 'विश्लेषण हो रहा है...',
+    photoReady: 'फोटो विश्लेषण के लिए तैयार है।',
+    aiResponse: 'AI उत्तर',
+    responseSourceText: 'BIS ज्ञान भंडार से स्रोत संदर्भों के साथ उत्पन्न उत्तर।',
+    yourQuestion: 'आपका प्रश्न',
+    answerLabel: 'उत्तर',
+    officialSources: 'आधिकारिक स्रोत',
+    generating: 'BIS नॉलेज बेस से उत्तर तैयार किया जा रहा है...',
+    disclaimer: 'उत्तर BIS प्रकाशनों और नियामक दस्तावेजों का उपयोग करके उत्पन्न किए जाते हैं। उपयोगकर्ताओं को आधिकारिक BIS दस्तावेजों के माध्यम से जानकारी सत्यापित करनी चाहिए:',
+    clear: 'साफ करें',
+    readyToAssist: 'आपकी सहायता के लिए तैयार',
+    typingHelper: 'ऊपर अपना प्रश्न टाइप करें या उत्पाद फ़ोटो अपलोड करें।',
+  }
 };
 
-function getOfflineAnswer(query: string): string | null {
-  const q = query.toLowerCase().trim().replace(/[?।]/g, '');
-  for (const [key, answer] of Object.entries(offlineKnowledge)) {
-    if (q.includes(key) || key.includes(q)) return answer;
+function getOfflineAnswer(query: string, lang: SupportedLanguage): string | null {
+  const results = searchMultilingualKnowledge(query, lang);
+  if (results && results.length > 0) {
+    return `${results[0].answer}\n\n---SOURCES---\n- https://www.bis.gov.in/`;
   }
   return null;
 }
@@ -241,7 +285,7 @@ export default function BISChat() {
     setInput('');
     setIsLoading(true);
     try {
-      const offlineAnswer = getOfflineAnswer(trimmed);
+      const offlineAnswer = getOfflineAnswer(trimmed, selectedLang);
       if (offlineAnswer && !navigator.onLine) {
         setMessages(prev => [...prev, { role: 'assistant', content: offlineAnswer }]);
         setIsLoading(false);
@@ -261,10 +305,18 @@ ${responseMode === 'simple'
   : 'DETAILED MODE: Comprehensive, well-structured answers with technical details.'}
 Use markdown formatting.`;
 
-      // Mock streaming response
-      const aiResponseText = responseMode === 'simple'
-        ? `The Bureau of Indian Standards (BIS) is the national standards body of India.\nIt ensures product safety and quality by granting the ISI Mark for many goods.\nBIS manages the compulsory registration of electronic and IT products.\nIt is also responsible for hallmarking of gold and silver items.\nConsumers can verify product authenticity using the BIS Care mobile app.\n\n---SOURCES---\n- https://www.bis.gov.in/\n\n---SUGGESTIONS---\n1. What is an ISI mark?\n2. How to check for Hallmarking?\n3. How to use BIS Care app?`
-        : `The Bureau of Indian Standards (BIS) is the National Standard Body of India, established under the BIS Act 2016.\n\n**Key Responsibilities:**\n- **Standards Formulation**: Developing Indian Standards (IS) for over 20,000 products.\n- **Product Certification**: Managing the ISI Mark scheme for critical products.\n- **Hallmarking Scheme**: Ensuring purity of precious metals through mandatory hallmarking.\n- **Testing & Calibration**: Running a network of laboratories across India.\n- **Compulsory Registration (CRS)**: Regulating IT and electronics products.\n- **International Representation**: Representing India in ISO and IEC.\n\n---SOURCES---\n- https://www.bis.gov.in/\n- https://www.services.bis.gov.in/\n\n---SUGGESTIONS---\n1. What products fall under mandatory certification?\n2. How can I verify an ISI mark?\n3. Where can I find the CRS product list?`;
+      // Mock streaming response (Multilingual)
+      let aiResponseText = "";
+      
+      if (selectedLang === 'hi') {
+        aiResponseText = responseMode === 'simple'
+          ? `भारतीय मानक ब्यूरो (BIS) भारत का राष्ट्रीय मानक निकाय है।\nयह कई वस्तुओं के लिए ISI मार्क प्रदान करके उत्पाद सुरक्षा और गुणवत्ता सुनिश्चित करता है।\nBIS इलेक्ट्रॉनिक और आईटी उत्पादों के अनिवार्य पंजीकरण का प्रबंधन करता है।\nयह सोने और चांदी की वस्तुओं की हॉलमार्किंग के लिए भी जिम्मेदार है।\nउपभोक्ता BIS Care मोबाइल ऐप का उपयोग करके उत्पाद की प्रामाणिकता सत्यापित कर सकते हैं।\n\n---SOURCES---\n- https://www.bis.gov.in/\n\n---SUGGESTIONS---\n1. आईएसआई मार्क क्या है?\n2. हॉलमार्किंग की जांच कैसे करें?\n3. बीआईएस केयर ऐप का उपयोग कैसे करें?`
+          : `भारतीय मानक ब्यूरो (BIS) भारत का राष्ट्रीय मानक निकाय है, जिसे BIS अधिनियम 2016 के तहत स्थापित किया गया है।\n\n**प्रमुख जिम्मेदारियां:**\n- **मानक निर्धारण**: 20,000 से अधिक उत्पादों के लिए भारतीय मानक (IS) विकसित करना।\n- **उत्पाद प्रमाणन**: महत्वपूर्ण उत्पादों के लिए ISI मार्क योजना का प्रबंधन करना।\n- **हॉलमार्किंग योजना**: अनिवार्य हॉलमार्किंग के माध्यम से कीमती धातुओं की शुद्धता सुनिश्चित करना।\n- **परीक्षण और अंशांकन**: पूरे भारत में प्रयोगशालाओं का एक नेटवर्क चलाना।\n- **अनिवार्य पंजीकरण (CRS)**: आईटी और इलेक्ट्रॉनिक्स उत्पादों को विनियमित करना।\n- **अंतर्राष्ट्रीय प्रतिनिधित्व**: ISO और IEC में भारत का प्रतिनिधित्व करना।\n\n---SOURCES---\n- https://www.bis.gov.in/\n- https://www.services.bis.gov.in/\n\n---SUGGESTIONS---\n1. अनिवार्य प्रमाणन के अंतर्गत कौन से उत्पाद आते हैं?\n2. मैं आईएसआई मार्क को कैसे सत्यापित कर सकता हूं?\n3. मैं सीआरएस उत्पाद सूची कहां पा सकता हूं?`;
+      } else {
+        aiResponseText = responseMode === 'simple'
+          ? `The Bureau of Indian Standards (BIS) is the national standards body of India.\nIt ensures product safety and quality by granting the ISI Mark for many goods.\nBIS manages the compulsory registration of electronic and IT products.\nIt is also responsible for hallmarking of gold and silver items.\nConsumers can verify product authenticity using the BIS Care mobile app.\n\n---SOURCES---\n- https://www.bis.gov.in/\n\n---SUGGESTIONS---\n1. What is an ISI mark?\n2. How to check for Hallmarking?\n3. How to use BIS Care app?`
+          : `The Bureau of Indian Standards (BIS) is the National Standard Body of India, established under the BIS Act 2016.\n\n**Key Responsibilities:**\n- **Standards Formulation**: Developing Indian Standards (IS) for over 20,000 products.\n- **Product Certification**: Managing the ISI Mark scheme for critical products.\n- **Hallmarking Scheme**: Ensuring purity of precious metals through mandatory hallmarking.\n- **Testing & Calibration**: Running a network of laboratories across India.\n- **Compulsory Registration (CRS)**: Regulating IT and electronics products.\n- **International Representation**: Representing India in ISO and IEC.\n\n---SOURCES---\n- https://www.bis.gov.in/\n- https://www.services.bis.gov.in/\n\n---SUGGESTIONS---\n1. What products fall under mandatory certification?\n2. How can I verify an ISI mark?\n3. Where can I find the CRS product list?`;
+      }
 
       const mockStream = new ReadableStream({
         start(controller) {
@@ -391,22 +443,22 @@ Use markdown formatting.`;
       <div className="bg-primary/5 border-b border-border">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
-            <span>Home</span>
+            <span>{uiTranslations[selectedLang].title}</span>
             <ChevronRight className="h-3 w-3" />
-            <span className="text-primary font-medium">Ask BIS AI</span>
+            <span className="text-primary font-medium">{uiTranslations[selectedLang].subtitle}</span>
           </nav>
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
-                Digital Knowledge Service · Government of India
+                {uiTranslations[selectedLang].digitalService}
               </p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">BIS AI Knowledge Assistant</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{uiTranslations[selectedLang].subtitle}</h1>
               <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-                AI-powered service for BIS standards, certification requirements, and regulatory policies.
+                {uiTranslations[selectedLang].description}
               </p>
             </div>
             <Badge variant="secondary" className="self-start sm:self-auto text-xs px-3 py-1.5 rounded-sm">
-              Powered by BIS Knowledge Base
+              {uiTranslations[selectedLang].poweredBy}
             </Badge>
           </div>
         </div>
@@ -428,12 +480,12 @@ Use markdown formatting.`;
                     onClick={startNewChat}
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    New Conversation
+                    {uiTranslations[selectedLang].newChat}
                   </Button>
 
                   {/* Knowledge Topics */}
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Knowledge Topics</p>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">{uiTranslations[selectedLang].topics}</p>
                     <ul className="space-y-1">
                       {knowledgeTopics.map(({ label, icon: Icon }) => (
                         <li key={label}>
@@ -452,7 +504,7 @@ Use markdown formatting.`;
 
                   {/* Suggested Questions */}
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Suggested Questions</p>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">{uiTranslations[selectedLang].suggested}</p>
                     <ul className="space-y-1">
                       {exampleQuestions.map((q) => (
                         <li key={q}>
@@ -475,11 +527,11 @@ Use markdown formatting.`;
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                      <Clock className="h-3 w-3" /> History
+                      <Clock className="h-3 w-3" /> {uiTranslations[selectedLang].history}
                     </p>
                     {chatHistory.length > 0 && (
                       <button
-                        onClick={() => { if (confirm('Clear all chat history?')) { setChatHistory([]); startNewChat(); } }}
+                        onClick={() => { if (confirm(uiTranslations[selectedLang].clearHistory)) { setChatHistory([]); startNewChat(); } }}
                         className="text-destructive hover:text-destructive/80 transition-colors"
                         aria-label="Clear history"
                       >
@@ -489,7 +541,7 @@ Use markdown formatting.`;
                   </div>
                   <div className="space-y-1 max-h-[280px] overflow-y-auto">
                     {chatHistory.length === 0 ? (
-                      <p className="text-xs text-muted-foreground py-2">No recent conversations.</p>
+                      <p className="text-xs text-muted-foreground py-2">{uiTranslations[selectedLang].noHistory}</p>
                     ) : (
                       chatHistory.map((chat) => (
                         <button
@@ -523,7 +575,7 @@ Use markdown formatting.`;
                     {/* Language */}
                     <div className="flex items-center gap-2">
                       <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">Language:</span>
+                      <span className="text-xs text-muted-foreground">{uiTranslations[selectedLang].language}:</span>
                       <div className="flex gap-1">
                         {(Object.keys(languageLabels) as SupportedLanguage[]).map((lang) => (
                           <Button
@@ -543,7 +595,7 @@ Use markdown formatting.`;
 
                     {/* Response mode */}
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Mode:</span>
+                      <span className="text-xs text-muted-foreground">{uiTranslations[selectedLang].mode}:</span>
                       <div className="flex border border-border rounded-sm overflow-hidden">
                         <button
                           onClick={() => handleModeChange('simple')}
@@ -553,7 +605,7 @@ Use markdown formatting.`;
                               : 'text-muted-foreground hover:bg-secondary/50'
                           }`}
                         >
-                          Simple
+                          {uiTranslations[selectedLang].simple}
                         </button>
                         <button
                           onClick={() => handleModeChange('detailed')}
@@ -563,7 +615,7 @@ Use markdown formatting.`;
                               : 'text-muted-foreground hover:bg-secondary/50'
                           }`}
                         >
-                          Detailed
+                          {uiTranslations[selectedLang].detailed}
                         </button>
                       </div>
                     </div>
@@ -575,7 +627,7 @@ Use markdown formatting.`;
                       <Input
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask a question about BIS standards or certification procedures..."
+                        placeholder={uiTranslations[selectedLang].placeholder}
                         className="h-11 rounded-sm"
                         disabled={isLoading}
                       />
@@ -596,16 +648,16 @@ Use markdown formatting.`;
                       disabled={isLoading || !input.trim()}
                       className="h-11 rounded-sm px-5 gap-2 shadow-none shrink-0"
                     >
-                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      Ask
-                    </Button>
+                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {uiTranslations[selectedLang].ask}
+                      </Button>
                   </form>
 
                   {/* Image upload */}
                   <div className="mt-3 border border-border rounded-sm p-3 bg-secondary/20">
                     <div className="flex items-center gap-2 mb-2">
                       <ImageIcon className="h-3.5 w-3.5 text-primary" />
-                      <p className="text-xs font-semibold text-foreground">Scan Product — Upload Photo</p>
+                      <p className="text-xs font-semibold text-foreground">{uiTranslations[selectedLang].scanTitle}</p>
                     </div>
                     <div className="flex flex-wrap gap-2 items-center">
                       <input
@@ -623,10 +675,10 @@ Use markdown formatting.`;
                         onClick={() => fileInputRef.current?.click()}
                       >
                         <Upload className="h-3.5 w-3.5" />
-                        Choose Photo
+                        {uiTranslations[selectedLang].choosePhoto}
                       </Button>
                       <span className="text-xs text-muted-foreground flex-1 truncate">
-                        {uploadedFile ? uploadedFile.name : 'JPG / PNG / WebP, max 5 MB'}
+                        {uploadedFile ? uploadedFile.name : uiTranslations[selectedLang].photoSpecs}
                       </span>
                       <Button
                         type="button"
@@ -636,11 +688,11 @@ Use markdown formatting.`;
                         disabled={!uploadedFile || isAnalyzing}
                       >
                         {isAnalyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                        {isAnalyzing ? 'Analysing...' : 'Analyse & Ask'}
+                        {isAnalyzing ? uiTranslations[selectedLang].analysing : uiTranslations[selectedLang].analyseAndAsk}
                       </Button>
                       {uploadedFile && (
                         <Button type="button" variant="ghost" size="sm" className="h-8 text-xs rounded-sm" onClick={clearUpload}>
-                          Clear
+                          {uiTranslations[selectedLang].clear}
                         </Button>
                       )}
                     </div>
@@ -648,7 +700,7 @@ Use markdown formatting.`;
                       <div className="mt-3 flex items-center gap-3">
                         <img src={imagePreview} alt="Uploaded product" className="h-14 w-14 object-contain rounded-sm border bg-white dark:bg-card" />
                         <p className="text-xs text-muted-foreground">
-                          {lastAnalysis?.summary ?? 'Photo ready for analysis.'}
+                          {lastAnalysis?.summary ?? uiTranslations[selectedLang].photoReady}
                         </p>
                       </div>
                     )}
@@ -661,19 +713,19 @@ Use markdown formatting.`;
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                      <MessageSquare className="h-3 w-3" /> AI Response
+                      <MessageSquare className="h-3 w-3" /> {uiTranslations[selectedLang].aiResponse}
                     </p>
                     {messages.length > 0 && (
                       <button
                         onClick={startNewChat}
                         className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-1"
                       >
-                        <Plus className="h-3 w-3" /> New Chat
+                        <Plus className="h-3 w-3" /> {uiTranslations[selectedLang].newChat}
                       </button>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mb-4">
-                    Answers generated from BIS knowledge repository with source references.
+                    {uiTranslations[selectedLang].responseSourceText}
                   </p>
 
                   <div ref={scrollRef} className="max-h-[600px] overflow-y-auto space-y-3 pr-1">
@@ -695,9 +747,9 @@ Use markdown formatting.`;
                         </div>
                         <div className="border border-dashed border-border rounded-sm p-8 text-center bg-secondary/10">
                           <MessageSquare className="h-8 w-8 text-primary/20 mx-auto mb-3" />
-                          <p className="text-sm font-semibold text-foreground mb-1">Ready to assist you</p>
+                          <p className="text-sm font-semibold text-foreground mb-1">{uiTranslations[selectedLang].readyToAssist}</p>
                           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                            Type your question above or upload a product photo.
+                            {uiTranslations[selectedLang].typingHelper}
                           </p>
                         </div>
                       </div>
@@ -708,7 +760,7 @@ Use markdown formatting.`;
                       if (msg.role === 'user') {
                         return (
                           <div key={i} className="border border-border bg-secondary/20 rounded-sm p-3">
-                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Your Question</p>
+                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">{uiTranslations[selectedLang].yourQuestion}</p>
                             <p className="text-sm text-foreground">{msg.content}</p>
                           </div>
                         );
@@ -716,14 +768,14 @@ Use markdown formatting.`;
                       const { body, sources } = parseSources(msg.content);
                       return (
                         <div key={i} className="border border-border bg-white dark:bg-card rounded-sm p-4">
-                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Answer</p>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">{uiTranslations[selectedLang].answerLabel}</p>
                           <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
                           </div>
                           {sources.length > 0 && (
                             <div className="mt-3 pt-3 border-t border-border">
                               <p className="text-xs font-semibold text-foreground mb-1.5 flex items-center gap-1">
-                                <ExternalLink className="h-3 w-3" /> Official Sources
+                                <ExternalLink className="h-3 w-3" /> {uiTranslations[selectedLang].officialSources}
                               </p>
                               <ul className="space-y-1">
                                 {sources.map((src) => (
@@ -743,7 +795,7 @@ Use markdown formatting.`;
                     {isLoading && (
                       <div className="border border-border bg-white dark:bg-card rounded-sm p-4 flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        <span className="text-xs text-muted-foreground">Generating response from BIS knowledge base...</span>
+                        <span className="text-xs text-muted-foreground">{uiTranslations[selectedLang].generating}</span>
                       </div>
                     )}
                   </div>
@@ -752,7 +804,7 @@ Use markdown formatting.`;
 
               {/* Disclaimer */}
               <div className="border border-border bg-secondary/20 rounded-sm p-3 text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">Disclaimer:</span> Responses are generated using BIS publications and regulatory documents. Users should verify information through official BIS documentation at{' '}
+                <span className="font-semibold text-foreground">{uiTranslations[selectedLang].disclaimer}:</span>{' '}
                 <a href="https://www.bis.gov.in" target="_blank" rel="noreferrer" className="text-primary hover:underline">
                   www.bis.gov.in
                 </a>.

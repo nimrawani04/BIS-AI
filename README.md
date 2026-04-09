@@ -1,30 +1,35 @@
 #  <img src="./public/favicon.ico" height=25 style="border-radius:50%;"> BIS AI — Bureau of Indian Standards
 
-> AI-powered product safety verification platform with offline-first design for rural India.
+> AI-powered product safety and certification platform for Indian consumers, built with an offline-first, multilingual design.
 
-![Stack](https://img.shields.io/badge/React-18-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![PWA](https://img.shields.io/badge/PWA-Offline%20Ready-green) ![Vite](https://img.shields.io/badge/Vite-5-purple)
-
----
-
-
-## 🚀 Overview  
-
-**BIS AI** is an intelligent assistant that helps users access and understand information from the Bureau of Indian Standards (BIS).
-
-It uses a **Retrieval-Augmented Generation (RAG)** pipeline to fetch verified content from BIS sources and generate **accurate, source-backed answers**.
-
-**Goal:** Make product safety, certification, and standards easy to understand for everyone, including users in low-connectivity rural areas.
+![React](https://img.shields.io/badge/React-18-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![PWA](https://img.shields.io/badge/PWA-Offline%20Ready-green) ![Vite](https://img.shields.io/badge/Vite-5-purple) ![Supabase](https://img.shields.io/badge/Supabase-Backend-green)
 
 ---
 
-## 🧠 Features  
+## Overview
 
-- 🤖 AI chatbot for BIS queries  
-- 📸 Product image scanner (ISI/BIS detection)  
-- 📴 Offline-first PWA  
-- 🌐 Multilingual support (9 languages)  
-- ⚡ Low bandwidth & simple mode  
-- 📊 Safety alerts, product comparison, reports  
+**BIS AI** is an intelligent assistant that helps Indian consumers access and understand information from the Bureau of Indian Standards (BIS). The system leverages a **Retrieval-Augmented Generation (RAG)** pipeline to fetch verified data from BIS sources and deliver accurate, context-aware responses through an interactive chatbot.
+
+Key features include multilingual support (English & Hindi), simple and detailed explanation modes, voice and image-based input, conversation history, and a product image scanner for BIS/ISI detection. The platform also offers certification guidelines, a standards explorer, risk/heat map visualisation, and safety insights.
+
+Designed with accessibility in mind, BIS AI supports low-bandwidth environments, offline-first functionality, and light/dark mode for enhanced usability.
+
+---
+
+## Features
+
+- RAG-based AI chatbot for BIS queries with streaming responses
+- Multilingual support — English & Hindi
+- Simple / Detailed response mode toggle
+- Voice input and product image scanner (ISI/BIS mark detection)
+- Conversation history with local persistence
+- Offline-first PWA with service worker support
+- Low bandwidth mode
+- India Risk / Heat Map visualisation
+- Standards Explorer and Certification Guide
+- Safety alerts and product comparison tools
+- Light / Dark mode
+- Government of India styled UI
 
 ---
 
@@ -37,29 +42,26 @@ It uses a **Retrieval-Augmented Generation (RAG)** pipeline to fetch verified co
 │  ┌───────────┐ ┌──────────┐ ┌────────────────┐  │
 │  │  Pages    │ │Components│ │  Offline Data  │  │
 │  │ BISHome   │ │ Hero     │ │ Knowledge Base │  │
-│  │ BISChat   │ │ Scanner  │ │ 9 Languages    │  │
-│  │ Standards │ │ Alerts   │ │ Service Worker │  │
+│  │ BISChat   │ │ Scanner  │ │ EN / HI        │  │
+│  │ Standards │ │ RiskMap  │ │ Service Worker │  │
 │  └───────────┘ └──────────┘ └────────────────┘  │
 └────────────────────┬────────────────────────────┘
                      │ HTTPS / REST
 ┌────────────────────▼────────────────────────────┐
 │              Backend (Supabase)                 │
-│          Supabase (PostgreSQL + Auth)           │
 │  ┌─────────────────────────────────────────┐    │
 │  │         Edge Functions (Deno)           │    │
-│  │  • safety-assistant    (AI chat)        │    │
-│  │  • bis-chat            (BIS Q&A)        │    │
+│  │  • rag-search           (AI chat)       │    │
 │  │  • analyze-product-image (vision AI)    │    │
-│  │  • home-safety-report  (PDF reports)    │    │
+│  │  • home-safety-report   (PDF reports)   │    │
+│  │  • crawl-bis            (data ingestion)│    │
 │  └──────────────┬──────────────────────────┘    │
 │                 │                               │
 │  ┌──────────────▼──────────────────────────┐    │
-│  │    Google Gemini API                    │    │
-│  │    Gemini 2.5 Flash                     │    │
+│  │           Groq API                      │    │
 │  └─────────────────────────────────────────┘    │
-│                                                 │
 │  ┌─────────────────────────────────────────┐    │
-│  │  Database Tables                        │    │
+│  │  Database (PostgreSQL + pgvector)       │    │
 │  │  • product_reports    • safety_alerts   │    │
 │  │  • product_reviews    • scan_history    │    │
 │  └─────────────────────────────────────────┘    │
@@ -68,51 +70,54 @@ It uses a **Retrieval-Augmented Generation (RAG)** pipeline to fetch verified co
 
 ---
 
-
 ## Project Structure
 
 ```
-├── public/                     # Static assets, PWA icons
+├── public/                     # Static assets, PWA icons, GeoJSON maps
 ├── src/
 │   ├── assets/                 # Images (Ashoka Chakra, etc.)
 │   ├── components/             # React components
 │   │   ├── ui/                 # shadcn/ui primitives
-│   │   ├── Header.tsx          # Main navigation
+│   │   ├── BISHeader.tsx       # GOI-styled header with nav
 │   │   ├── Hero.tsx            # Landing hero (low-bandwidth aware)
-│   │   ├── SmartSafetyAssistant.tsx  # AI chat (online/offline)
-│   │   ├── OfflineSafetyAssistant.tsx # Offline search + voice
-│   │   ├── HouseholdScanner.tsx      # Image analysis
-│   │   ├── LowBandwidthToggle.tsx    # ⚡ toggle
+│   │   ├── SmartSafetyAssistant.tsx
+│   │   ├── OfflineSafetyAssistant.tsx
+│   │   ├── HouseholdScanner.tsx
+│   │   ├── IndiaRiskMap.tsx
 │   │   └── ...
 │   ├── data/
-│   │   ├── products.ts                    # Product database
-│   │   ├── offlineKnowledgeBase.ts        # Offline BIS data
-│   │   └── offlineKnowledgeMultilingual.ts # 9-language translations
+│   │   ├── products.ts
+│   │   ├── offlineKnowledgeBase.ts
+│   │   └── offlineKnowledgeMultilingual.ts  # EN / HI translations
 │   ├── hooks/
-│   │   ├── useOnlineStatus.ts   # Network detection
-│   │   ├── useLowBandwidth.tsx  # Bandwidth context provider
-│   │   ├── useAuth.tsx          # Authentication
-│   │   └── use-mobile.tsx       # Responsive detection
-│   ├── integrations/
-│   │   └── supabase/            # Auto-generated client & types
+│   │   ├── useOnlineStatus.ts
+│   │   ├── useLowBandwidth.tsx
+│   │   ├── useAuth.tsx
+│   │   └── use-mobile.tsx
+│   ├── integrations/supabase/  # Auto-generated client & types
 │   ├── pages/
-│   │   ├── BISHome.tsx          # Main landing page
-│   │   ├── BISChat.tsx          # AI chat page
+│   │   ├── BISHome.tsx         # Main landing page
+│   │   ├── BISChat.tsx         # Ask BIS AI — chat interface
 │   │   ├── CertificationGuide.tsx
 │   │   ├── StandardsExplorer.tsx
+│   │   ├── RiskMapPage.tsx
 │   │   └── AboutBIS.tsx
-│   ├── App.tsx                  # Root with providers
-│   ├── main.tsx                 # Entry point
-│   └── index.css                # Design tokens & Tailwind
+│   ├── App.tsx
+│   ├── main.tsx
+│   └── index.css               # Design tokens & Tailwind
 ├── supabase/
-│   ├── functions/
-│   │   ├── safety-assistant/    # AI streaming chat
-│   │   ├── bis-chat/            # BIS Q&A
-│   │   ├── analyze-product-image/ # Vision AI scanner
-│   │   └── home-safety-report/  # PDF generation
-│   └── config.toml              # Supabase configuration
-├── vite.config.ts               # Vite + PWA config
-├── tailwind.config.ts           # Design system tokens
+│   └── functions/
+│       ├── rag-search/         # RAG-based AI streaming chat
+│       ├── analyze-product-image/
+│       ├── home-safety-report/
+│       └── crawl-bis/          # BIS website crawler
+├── scripts/bis/
+│   ├── scrape.mjs              # Scrape BIS pages
+│   ├── ingest.py               # Embed & store in pgvector
+│   └── sync.mjs                # Sync scraped data
+├── data/bis-scraped/           # Raw scraped BIS content
+├── vite.config.ts
+├── tailwind.config.ts
 └── package.json
 ```
 
@@ -121,54 +126,84 @@ It uses a **Retrieval-Augmented Generation (RAG)** pipeline to fetch verified co
 ## Setup & Installation
 
 ### Prerequisites
-- Node.js 18+ (recommended: use [nvm](https://github.com/nvm-sh/nvm))
-- npm or bun
+- Node.js 18+
+- Python 3.9+ (for ingestion script)
+- A [Supabase](https://supabase.com) project with pgvector enabled
+- A [Groq](https://console.groq.com) API key
 
 ### Local Development
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/nimrawani04/bis-ai.git
-cd BIS-AI
+cd bis-ai
 
 # 2. Install dependencies
 npm install
 
-# 3. Start development server
+# 3. Copy env and fill in your keys
+cp .env.example .env
+
+# 4. Start development server
 npm run dev
 # App runs at http://localhost:8080
 ```
 
-## 🔍 How It Works  
+### Environment Variables
 
-1. Crawl BIS website data  
-2. Convert content into embeddings  
-3. Store in vector database  
-4. On user query:
-   - Retrieve relevant data  
-   - Generate AI response  
-   - Provide source citations  
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+GROQ_API_KEY=your-groq-api-key
+```
 
----
+### Data Pipeline (RAG)
 
-## 🛠️ Tech Stack  
+```bash
+# Scrape BIS website
+npm run scrape:bis
 
-**Frontend:**  
-React • TypeScript • Tailwind • React Query • Framer Motion  
+# Embed and ingest into Supabase pgvector
+npm run ingest:bis
 
-**Backend:**  
-Supabase • PostgreSQL • Deno  
-
-**AI & Data:**  
-Gemini API • pgvector • Firecrawl  
+# Or sync both steps
+npm run sync:bis
+```
 
 ---
 
+## How It Works
+
+1. BIS website pages are scraped and stored in `data/bis-scraped/`
+2. Content is chunked, embedded, and stored in Supabase pgvector
+3. On user query, relevant chunks are retrieved by similarity search
+4. Groq API generates a response grounded in the retrieved context
+5. Response is streamed to the UI with source citations
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| UI Components | shadcn/ui, Radix UI, Lucide Icons |
+| Maps | react-simple-maps, TopoJSON |
+| Backend | Supabase (PostgreSQL, Auth, Edge Functions), Firebase |
+| AI | Groq API |
+| Vector Search | pgvector (Supabase) |
+| PWA | vite-plugin-pwa |
+| Testing | Vitest, Testing Library |
+
+---
 
 ## License
-- MIT
-### 👩‍💻 Developers
 
-- 🔹 **Nimra Wani** — [Portfolio](https://nimrawani.vercel.app/)
-- 🔹 **Milad Ajaz Bhat** — [Portfolio](https://m4milaad.github.io/)
+MIT
 
+---
+
+### Developers
+
+- **Nimra Wani** — [Portfolio](https://nimrawani.vercel.app/)
+- **Milad Ajaz Bhat** — [Portfolio](https://m4milaad.github.io/)

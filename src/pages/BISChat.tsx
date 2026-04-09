@@ -213,7 +213,7 @@ Always end with ---SUGGESTIONS--- (with 3 follow-up questions)
 
 ## MODE INSTRUCTIONS
 ${responseMode === 'simple' 
-  ? 'SIMPLE MODE: Provide short, direct answers in easy-to-understand language. Avoid technical jargon. Keep it under 100 words.' 
+  ? 'SIMPLE MODE: Provide short, direct answers in easy-to-understand language. Avoid technical jargon. Keep the response to approximately 6-7 lines.' 
   : 'DETAILED MODE: Provide comprehensive, well-explained answers. Include technical details, clauses if known, and structured explanations. No word limit.'}
 
 ## CONTEXT AWARENESS
@@ -230,16 +230,20 @@ Keep responses concise, use markdown formatting.`;
       if (selectedLang === 'hi') {
         if (responseMode === 'simple') {
           aiResponseText = `भारतीय मानक ब्यूरो (BIS) भारत का राष्ट्रीय मानक निकाय है।
-यह उत्पादों की गुणवत्ता सुनिश्चित करने के लिए ISI मार्क प्रदान करता है।
-यह सोने और चांदी के आभूषणों की शुद्धता के लिए हॉलमार्किंग का संचालन करता है।
-इसका मुख्य उद्देश्य उपभोक्ताओं को सुरक्षित और प्रमाणित उत्पाद उपलब्ध कराना है।
+यह मुख्य रूप से इस्पात, रसायन और इलेक्ट्रॉनिक्स जैसे उत्पादों के लिए ISI मार्क प्रदान करता है।
+BIS उपभोक्ताओं को गुणवत्तापूर्ण और सुरक्षित सामान प्राप्त करने में सहायता करता है।
+सोने और चांदी की शुद्धता के लिए हॉलमार्किंग की प्रक्रिया भी इसी के माध्यम से होती है।
+BIS मानकों के उल्लंघन की स्थिति में आप इसकी मोबाइल ऐप के जरिए शिकायत कर सकते हैं।
+यह औद्योगिक विकास में मानकों के निर्धारण द्वारा देश की अर्थव्यवस्था को मजबूत बनाता है।
+उपभोक्ताओं को जागरूक करना और उनकी सुरक्षा सुनिश्चित करना इसका सर्वोच्च कर्तव्य है।
 
 ---SOURCES---
 - https://www.bis.gov.in/
 
 ---SUGGESTIONS---
 1. ISI मार्क क्या है?
-2. हॉलमार्किंग कैसे देखें?`;
+2. हॉलमार्किंग कैसे देखें?
+3. BIS ऐप डाउनलोड कैसे करें?`;
         } else {
           aiResponseText = `भारतीय मानक ब्यूरो (BIS) अधिनियम 2016 के तहत स्थापित भारत का राष्ट्रीय मानक निकाय है। यह उपभोक्ता मामलों के मंत्रालय के तत्वावधान में कार्य करता है।
 
@@ -265,16 +269,20 @@ Keep responses concise, use markdown formatting.`;
       } else {
         if (responseMode === 'simple') {
           aiResponseText = `The Bureau of Indian Standards (BIS) is the national standards body of India.
-It ensures product safety and quality by granting the prestigious ISI Mark.
-It is responsible for the hallmarking of gold and silver to protect consumers.
-BIS helps in the harmonious development of standardization activities across the country.
+It ensures product safety and quality by granting the prestigious ISI Mark for many goods.
+BIS manages the compulsory registration of electronic and information technology products.
+It is also responsible for the hallmarking of gold and silver items to protect consumers.
+Standards are formulated to promote harmonized industrial development in the country.
+Consumers can verify the authenticity of products using the official BIS Care mobile application.
+Its primary mission is to ensure that Indian citizens receive safe and high-quality products.
 
 ---SOURCES---
 - https://www.bis.gov.in/
 
 ---SUGGESTIONS---
 1. What is an ISI mark?
-2. How to check for Hallmarking?`;
+2. How to check for Hallmarking?
+3. How to use BIS Care app?`;
         } else {
           aiResponseText = `The Bureau of Indian Standards (BIS) is the National Standard Body of India, established under the BIS Act 2016. It operates under the Ministry of Consumer Affairs, Food and Public Distribution.
 
@@ -426,13 +434,6 @@ Through these diverse activities, BIS ensures that Indian consumers receive safe
     const langMap: Record<string, string> = {
       en: 'en-IN',
       hi: 'hi-IN',
-      ur: 'ur-PK',
-      ta: 'ta-IN',
-      te: 'te-IN',
-      bn: 'bn-IN',
-      kn: 'kn-IN',
-      ml: 'ml-IN',
-      ks: 'ks-IN',
     };
     recognition.lang = langMap[selectedLang] || 'en-IN';
     recognition.interimResults = false;

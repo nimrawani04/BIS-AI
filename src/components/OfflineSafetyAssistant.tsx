@@ -92,8 +92,7 @@ export function OfflineSafetyAssistant() {
 
     const recognition = new SpeechRecognition();
     const langMap: Record<string, string> = {
-      en: 'en-IN', hi: 'hi-IN', ur: 'ur-PK', ta: 'ta-IN',
-      te: 'te-IN', bn: 'bn-IN', kn: 'kn-IN', ml: 'ml-IN', ks: 'ks-IN',
+      en: 'en-IN', hi: 'hi-IN',
     };
     recognition.lang = langMap[selectedLang] || 'hi-IN';
     recognition.interimResults = false;

@@ -58,11 +58,11 @@ ${candidateList}
 
 Return ONLY the JSON array, nothing else.`;
 
-    const res = await fetch("https://api.x.ai/v1/chat/completions", {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "grok-beta",
+        model: "llama-3.3-70b-versatile",
         messages: [{ role: "user", content: prompt }],
         temperature: 0,
         max_tokens: 50,
@@ -139,10 +139,11 @@ const SYSTEM_PROMPT = `You are the BIS Smart Assistant — an expert AI on the B
 3. LAST RESORT: Say you couldn't find it — never hallucinate
 
 ## RULES
-- OUT-OF-SCOPE: If NOT about BIS, respond: "I can only answer questions related to the Bureau of Indian Standards (BIS) and its services."
-- NO HALLUCINATION: Never invent fees, dates, or procedures.
+- OUT-OF-SCOPE: If the question is not about BIS, politely explain that you are a BIS specialized assistant. Then, try to find a related BIS topic (e.g., if they ask about generic safety, suggest ISI mark for electrical safety).
+- DATA NOT FOUND: If you cannot find specific data in the context or knowledge base, say: "I couldn't find specific details about this on the official BIS repository at the moment." Then, suggest the most closely related BIS standard or procedure.
+- NO HALLUCINATION: Never invent fees, dates, or procedures. If unsure, admit it and suggest checking the official BIS Care App.
 - CITATIONS: Always end with ---SOURCES--- listing relevant URLs.
-- SUGGESTIONS: Always end with ---SUGGESTIONS--- with 3 follow-up questions.
+- SUGGESTIONS: Always end with ---SUGGESTIONS--- with 3 follow-up questions that guide the user back to BIS services.
 - MULTILINGUAL: Match user's language (Hindi/Hinglish/regional). Keep BIS, ISI, FMCS in English.
 - Use markdown (headers, lists, bold, tables).
 
@@ -189,7 +190,7 @@ serve(async (req) => {
       });
     }
 
-    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") || Deno.env.get("GROK_API_KEY") || Deno.env.get("XAI_API_KEY");
     const JINA_API_KEY = Deno.env.get("JINA_API_KEY");
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -309,11 +310,11 @@ serve(async (req) => {
     }
 
     // ── Step 4: Generate answer (rag.md §10) ──────────────────────────────────
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "grok-beta",
+        model: "llama-3.3-70b-versatile",
         stream: true,
         messages: [
           { role: "system", content: finalPrompt },

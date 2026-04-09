@@ -16,7 +16,80 @@ import { toast } from '@/components/ui/sonner';
 import { useSearchParams } from 'react-router-dom';
 import { languageLabels, type SupportedLanguage, searchMultilingualKnowledge } from '@/data/offlineKnowledgeMultilingual';
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rag-search`;
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_API_KEY = import.meta.env.VITE_GROK_API_KEY || '';
+
+const SYSTEM_PROMPT = `You are the BIS Smart Assistant — an expert AI on the Bureau of Indian Standards (BIS), Government of India.
+
+## RULES
+- Answer ONLY questions related to BIS, Indian Standards, product certification, hallmarking, CRS, consumer safety, and related topics.
+- OUT-OF-SCOPE: If the question is NOT about BIS or Indian product standards, politely say you are a BIS-specialized assistant and cannot answer that. Then suggest a related BIS topic the user might find useful.
+- NO HALLUCINATION: Never invent fees, dates, license numbers, or procedures. If unsure, say so and direct the user to https://www.bis.gov.in or the BIS Care App.
+- CITATIONS: Always end your response with a ---SOURCES--- section listing relevant official URLs.
+- SUGGESTIONS: Always end with ---SUGGESTIONS--- containing exactly 3 follow-up questions related to BIS.
+- Use markdown formatting (headers, bold, lists, tables where helpful).
+- Keep BIS, ISI, CRS, FMCS, HUID as English acronyms even in Hindi responses.
+
+## BIS KNOWLEDGE BASE
+
+### About BIS
+Bureau of Indian Standards (BIS) is India's national standards body, established under BIS Act 2016, under Ministry of Consumer Affairs, Food and Public Distribution. Formerly Indian Standards Institution (ISI) since 1947. HQ: New Delhi. 5 Regional Offices, 21 Branch Offices across India.
+Source: https://www.bis.gov.in/the-bureau/about-bis/
+
+### Certification Schemes
+**ISI Mark (Product Certification)** — Mandatory for 900+ products (steel, cement, LPG cylinders, helmets, electrical goods, toys, etc.). Apply at: https://manakonline.bis.gov.in
+Source: https://www.bis.gov.in/certification/product-certification/
+
+**Hallmarking** — Certifies purity of gold and silver jewellery. Mandatory for gold since June 16, 2021. Each piece gets a unique HUID (6-character alphanumeric). Verify via BIS Care App.
+Source: https://www.bis.gov.in/certification/hallmarking/
+
+**CRS (Compulsory Registration Scheme)** — Self-declaration scheme for electronics and IT products (mobile phones, laptops, LED lights, etc.). Register at: https://crsbis.in
+Source: https://www.bis.gov.in/certification/scheme-for-compulsory-registration/
+
+**FMCS (Foreign Manufacturers Certification Scheme)** — For overseas manufacturers wanting ISI mark for Indian market.
+Source: https://www.bis.gov.in/certification/foreign-manufacturers-certification-scheme-fmcs/
+
+**ECO Mark** — For environment-friendly products.
+
+### How to Apply for BIS Certification
+1. Register at https://manakonline.bis.gov.in
+2. Submit application with: test reports, factory details, quality control plan
+3. BIS reviews application and assigns an officer
+4. Factory/premises inspection by BIS officer
+5. Product samples tested at BIS-recognized labs
+6. License granted if compliant
+7. Annual surveillance audits + periodic renewal required
+
+### Verifying BIS Certification
+- ISI Mark: Use BIS Care App (Android/iOS) → scan or enter CM/L number
+- Hallmark: Use BIS Care App → enter 6-character HUID
+- CRS: Check at https://crsbis.in
+- Online portal: https://www.bis.gov.in/certification/product-certification/
+
+### BIS Standards
+22,000+ Indian Standards (IS numbers). Examples:
+- IS 10500: Drinking water quality
+- IS 4151: Protective helmets for motorcyclists
+- IS 694: PVC insulated cables
+- IS 1786: High strength deformed steel bars
+- IS 13252: IT equipment safety
+Source: https://www.bis.gov.in/standards/bis-standards/
+
+### BIS Laboratories
+NABL-accredited testing labs in: Mumbai, Kolkata, Chandigarh, Chennai, Sahibabad.
+Source: https://www.bis.gov.in/laboratory-services/
+
+### Consumer Complaints
+File complaints about substandard products at: https://www.bis.gov.in/consumer-affairs/
+BIS Care App also allows complaint filing.
+
+### BIS Act 2016
+Replaced BIS Act 1986. Covers mandatory standards, product certification, hallmarking, penalties for misuse of BIS marks. Penalties up to ₹2 lakh or 2 years imprisonment for misuse.
+
+### Regional & Branch Offices
+5 Regional Offices: New Delhi, Mumbai, Kolkata, Chennai, Chandigarh
+21 Branch Offices across major cities.
+Source: https://www.bis.gov.in/directory/regional-offices/`;
 
 type Message = {
   role: 'user' | 'assistant';
@@ -68,18 +141,36 @@ const quickStartCards = [
   },
 ];
 
-function parseSources(text: string): { body: string; sources: string[] } {
+function parseSources(text: string): { body: string; sources: string[]; suggestions: string[] } {
   let body = text;
   let sources: string[] = [];
-  const srcIdx = text.indexOf('---SOURCES---');
-  if (srcIdx !== -1) {
-    const afterSrc = text.slice(srcIdx + 13);
-    const sugInSrc = afterSrc.indexOf('---SUGGESTIONS---');
-    const srcBlock = sugInSrc !== -1 ? afterSrc.slice(0, sugInSrc) : afterSrc;
-    sources = srcBlock.split('\n').map(l => l.replace(/^\-\s*/, '').trim()).filter(l => l.startsWith('http'));
-    body = text.slice(0, srcIdx).trim();
+  let suggestions: string[] = [];
+
+  // Strip ---CHUNK_META--- block entirely (internal metadata, not for display)
+  const metaIdx = body.indexOf('---CHUNK_META---');
+  if (metaIdx !== -1) body = body.slice(0, metaIdx).trim();
+
+  // Extract ---SUGGESTIONS---
+  const sugIdx = body.indexOf('---SUGGESTIONS---');
+  if (sugIdx !== -1) {
+    const sugBlock = body.slice(sugIdx + 17);
+    suggestions = sugBlock.split('\n')
+      .map(l => l.replace(/^\d+\.\s*/, '').replace(/^\-\s*/, '').trim())
+      .filter(l => l.length > 5);
+    body = body.slice(0, sugIdx).trim();
   }
-  return { body, sources };
+
+  // Extract ---SOURCES---
+  const srcIdx = body.indexOf('---SOURCES---');
+  if (srcIdx !== -1) {
+    const srcBlock = body.slice(srcIdx + 13);
+    sources = srcBlock.split('\n')
+      .map(l => l.replace(/^\-\s*/, '').trim())
+      .filter(l => l.startsWith('http'));
+    body = body.slice(0, srcIdx).trim();
+  }
+
+  return { body, sources, suggestions };
 }
 
 const uiTranslations: Record<SupportedLanguage, any> = {
@@ -285,61 +376,60 @@ export default function BISChat() {
     setInput('');
     setIsLoading(true);
     try {
-      const offlineAnswer = getOfflineAnswer(trimmed, selectedLang);
-      if (offlineAnswer && !navigator.onLine) {
-        setMessages(prev => [...prev, { role: 'assistant', content: offlineAnswer }]);
-        setIsLoading(false);
+      // Offline fallback
+      if (!navigator.onLine) {
+        const offlineAnswer = getOfflineAnswer(trimmed, selectedLang);
+        if (offlineAnswer) {
+          setMessages(prev => [...prev, { role: 'assistant', content: offlineAnswer }]);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const modeInstruction = responseMode === 'simple'
+        ? '\n\nSIMPLE MODE: Give a short, clear answer in plain language. Use bullet points. Max 6-8 lines. Use emojis where helpful.'
+        : '\n\nDETAILED MODE: Give a comprehensive, well-structured answer with all relevant details, clauses, steps, and examples.';
+
+      const langInstruction = selectedLang === 'hi'
+        ? '\n\nRESPOND IN Hindi. Keep BIS, ISI, CRS, HUID, FMCS as English acronyms.'
+        : '';
+
+      const systemContent = SYSTEM_PROMPT + modeInstruction + langInstruction;
+
+      const resp = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          stream: true,
+          temperature: 0.5,
+          max_tokens: 1500,
+          messages: [
+            { role: 'system', content: systemContent },
+            ...updatedMessages.map(m => ({ role: m.role, content: m.content })),
+          ],
+        }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        if (resp.status === 429) toast.error('Rate limit reached. Please wait a moment.');
+        else toast.error(err?.error?.message || `Error ${resp.status}. Please try again.`);
         return;
       }
-      const payloadMessages = updatedMessages.map((m, i) => {
-        if (m.role !== 'user' || selectedLang === 'en' || i !== updatedMessages.length - 1) return m;
-        return { ...m, content: `${m.content}\n\nPlease respond in ${languageLabels[selectedLang]}.` };
-      });
-      const systemPrompt = `You are the BIS Smart Assistant — an expert AI on the Bureau of Indian Standards (BIS).
-Current Mode: ${responseMode.toUpperCase()}
-Selected Language: ${selectedLang}
-Answer about ISI Marks, Hallmarking, CRS, and BIS standards. Never hallucinate.
-Always end with ---SOURCES--- and ---SUGGESTIONS--- (3 follow-up questions).
-${responseMode === 'simple'
-  ? 'SIMPLE MODE: Short, direct answers in easy language. ~6-7 lines.'
-  : 'DETAILED MODE: Comprehensive, well-structured answers with technical details.'}
-Use markdown formatting.`;
 
-      // Mock streaming response (Multilingual)
-      let aiResponseText = "";
-      
-      if (selectedLang === 'hi') {
-        aiResponseText = responseMode === 'simple'
-          ? `भारतीय मानक ब्यूरो (BIS) भारत का राष्ट्रीय मानक निकाय है।\nयह कई वस्तुओं के लिए ISI मार्क प्रदान करके उत्पाद सुरक्षा और गुणवत्ता सुनिश्चित करता है।\nBIS इलेक्ट्रॉनिक और आईटी उत्पादों के अनिवार्य पंजीकरण का प्रबंधन करता है।\nयह सोने और चांदी की वस्तुओं की हॉलमार्किंग के लिए भी जिम्मेदार है।\nउपभोक्ता BIS Care मोबाइल ऐप का उपयोग करके उत्पाद की प्रामाणिकता सत्यापित कर सकते हैं।\n\n---SOURCES---\n- https://www.bis.gov.in/\n\n---SUGGESTIONS---\n1. आईएसआई मार्क क्या है?\n2. हॉलमार्किंग की जांच कैसे करें?\n3. बीआईएस केयर ऐप का उपयोग कैसे करें?`
-          : `भारतीय मानक ब्यूरो (BIS) भारत का राष्ट्रीय मानक निकाय है, जिसे BIS अधिनियम 2016 के तहत स्थापित किया गया है।\n\n**प्रमुख जिम्मेदारियां:**\n- **मानक निर्धारण**: 20,000 से अधिक उत्पादों के लिए भारतीय मानक (IS) विकसित करना।\n- **उत्पाद प्रमाणन**: महत्वपूर्ण उत्पादों के लिए ISI मार्क योजना का प्रबंधन करना।\n- **हॉलमार्किंग योजना**: अनिवार्य हॉलमार्किंग के माध्यम से कीमती धातुओं की शुद्धता सुनिश्चित करना।\n- **परीक्षण और अंशांकन**: पूरे भारत में प्रयोगशालाओं का एक नेटवर्क चलाना।\n- **अनिवार्य पंजीकरण (CRS)**: आईटी और इलेक्ट्रॉनिक्स उत्पादों को विनियमित करना।\n- **अंतर्राष्ट्रीय प्रतिनिधित्व**: ISO और IEC में भारत का प्रतिनिधित्व करना।\n\n---SOURCES---\n- https://www.bis.gov.in/\n- https://www.services.bis.gov.in/\n\n---SUGGESTIONS---\n1. अनिवार्य प्रमाणन के अंतर्गत कौन से उत्पाद आते हैं?\n2. मैं आईएसआई मार्क को कैसे सत्यापित कर सकता हूं?\n3. मैं सीआरएस उत्पाद सूची कहां पा सकता हूं?`;
-      } else {
-        aiResponseText = responseMode === 'simple'
-          ? `The Bureau of Indian Standards (BIS) is the national standards body of India.\nIt ensures product safety and quality by granting the ISI Mark for many goods.\nBIS manages the compulsory registration of electronic and IT products.\nIt is also responsible for hallmarking of gold and silver items.\nConsumers can verify product authenticity using the BIS Care mobile app.\n\n---SOURCES---\n- https://www.bis.gov.in/\n\n---SUGGESTIONS---\n1. What is an ISI mark?\n2. How to check for Hallmarking?\n3. How to use BIS Care app?`
-          : `The Bureau of Indian Standards (BIS) is the National Standard Body of India, established under the BIS Act 2016.\n\n**Key Responsibilities:**\n- **Standards Formulation**: Developing Indian Standards (IS) for over 20,000 products.\n- **Product Certification**: Managing the ISI Mark scheme for critical products.\n- **Hallmarking Scheme**: Ensuring purity of precious metals through mandatory hallmarking.\n- **Testing & Calibration**: Running a network of laboratories across India.\n- **Compulsory Registration (CRS)**: Regulating IT and electronics products.\n- **International Representation**: Representing India in ISO and IEC.\n\n---SOURCES---\n- https://www.bis.gov.in/\n- https://www.services.bis.gov.in/\n\n---SUGGESTIONS---\n1. What products fall under mandatory certification?\n2. How can I verify an ISI mark?\n3. Where can I find the CRS product list?`;
-      }
-
-      const mockStream = new ReadableStream({
-        start(controller) {
-          const encoder = new TextEncoder();
-          const words = aiResponseText.split(' ');
-          let i = 0;
-          const interval = setInterval(() => {
-            if (i >= words.length) {
-              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-              controller.close();
-              clearInterval(interval);
-              return;
-            }
-            const chunk = JSON.stringify({ choices: [{ delta: { content: words[i] + ' ' } }] });
-            controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
-            i++;
-          }, 30);
-        },
-      });
-      await handleStreamResponse(new Response(mockStream, { status: 200 }));
+      await handleStreamResponse(resp);
     } catch (e) {
       console.error('Chat error:', e);
-      toast.error('Failed to get response. Please try again.');
+      const offlineAnswer = getOfflineAnswer(trimmed, selectedLang);
+      if (offlineAnswer) {
+        setMessages(prev => [...prev, { role: 'assistant', content: `*(Offline)* ${offlineAnswer}` }]);
+      } else {
+        toast.error('Failed to get response. Check your connection and try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -765,7 +855,7 @@ Use markdown formatting.`;
                           </div>
                         );
                       }
-                      const { body, sources } = parseSources(msg.content);
+                      const { body, sources, suggestions } = parseSources(msg.content);
                       return (
                         <div key={i} className="border border-border bg-white dark:bg-card rounded-sm p-4">
                           <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">{uiTranslations[selectedLang].answerLabel}</p>
@@ -786,6 +876,23 @@ Use markdown formatting.`;
                                   </li>
                                 ))}
                               </ul>
+                            </div>
+                          )}
+                          {suggestions.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-border">
+                              <p className="text-xs font-semibold text-foreground mb-2">You might also ask:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {suggestions.map((s) => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => sendMessage(s)}
+                                    className="text-xs px-2.5 py-1 rounded-sm border border-primary/20 text-primary hover:bg-primary/5 transition-colors text-left"
+                                  >
+                                    {s}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>

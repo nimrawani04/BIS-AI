@@ -907,10 +907,7 @@ export default function BISChat() {
                     www.bis.gov.in
                   </a>.
                 </p>
-                <p>
-                  <span className="font-semibold text-foreground">Rate Limits:</span>{' '}
-                  This service uses Groq AI (free tier: 30 requests/minute). If you see a rate limit error, please wait 10-20 seconds before asking another question. Common questions are answered using offline knowledge.
-                </p>
+                
               </div>
             </section>
           </div>

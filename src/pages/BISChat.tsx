@@ -386,8 +386,18 @@ export default function BISChat() {
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        if (resp.status === 429) toast.error('Rate limit reached. Please wait a moment.');
-        else toast.error(err?.error?.message || `Error ${resp.status}. Please try again.`);
+        if (resp.status === 429) {
+          // Rate limit hit — fall back to offline knowledge
+          toast.error('Groq rate limit reached (30 requests/min). Using offline knowledge...');
+          const offlineAnswer = getOfflineAnswer(trimmed, selectedLang);
+          if (offlineAnswer) {
+            setMessages(prev => [...prev, { role: 'assistant', content: `*(Rate Limited — Offline Fallback)*\n\n${offlineAnswer}` }]);
+          } else {
+            setMessages(prev => [...prev, { role: 'assistant', content: `I've hit the Groq API rate limit (30 requests per minute). Please wait 10-20 seconds and try again, or ask a common BIS question that I can answer offline.\n\n---SOURCES---\n- https://www.bis.gov.in/\n\n---SUGGESTIONS---\n- What is BIS?\n- How to apply for BIS certification?\n- What is ISI mark?` }]);
+          }
+        } else {
+          toast.error(err?.error?.message || `Error ${resp.status}. Please try again.`);
+        }
         return;
       }
 
@@ -889,11 +899,18 @@ export default function BISChat() {
               </Card>
 
               {/* Disclaimer */}
-              <div className="border border-border bg-secondary/20 rounded-sm p-3 text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">{uiTranslations[selectedLang].disclaimer}:</span>{' '}
-                <a href="https://www.bis.gov.in" target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                  www.bis.gov.in
-                </a>.
+              <div className="border border-border bg-secondary/20 rounded-sm p-3 text-xs text-muted-foreground space-y-2">
+                <p>
+                  <span className="font-semibold text-foreground">Disclaimer:</span>{' '}
+                  Responses are generated using BIS publications and regulatory documents. Users should verify information through official BIS documentation at{' '}
+                  <a href="https://www.bis.gov.in" target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                    www.bis.gov.in
+                  </a>.
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Rate Limits:</span>{' '}
+                  This service uses Groq AI (free tier: 30 requests/minute). If you see a rate limit error, please wait 10-20 seconds before asking another question. Common questions are answered using offline knowledge.
+                </p>
               </div>
             </section>
           </div>

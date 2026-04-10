@@ -21,6 +21,7 @@ import {
   FileText,
   AlertTriangle,
 } from 'lucide-react';
+import { useLanguage } from '@/hooks/useLanguage';
 import { searchOfflineKnowledge, type KnowledgeEntry } from '@/data/offlineKnowledgeBase';
 import {
   searchMultilingualKnowledge,
@@ -49,9 +50,7 @@ export function OfflineSafetyAssistant() {
   const [results, setResults] = useState<{ question: string; answer: string; category: string }[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [selectedLang, setSelectedLang] = useState<SupportedLanguage>(() => {
-    return (localStorage.getItem('bis-offline-lang') as SupportedLanguage) || 'en';
-  });
+  const { language: selectedLang, changeLanguage: setSelectedLang } = useLanguage();
 
   const handleSearch = (searchQuery: string) => {
     const trimmed = searchQuery.trim();
@@ -75,7 +74,6 @@ export function OfflineSafetyAssistant() {
 
   const handleLangChange = (lang: SupportedLanguage) => {
     setSelectedLang(lang);
-    localStorage.setItem('bis-offline-lang', lang);
     if (hasSearched && query.trim()) {
       // Re-search with new language
       const multiResults = searchMultilingualKnowledge(query.trim(), lang);

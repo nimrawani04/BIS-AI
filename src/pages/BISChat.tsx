@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { useSearchParams } from 'react-router-dom';
-import { languageLabels, type SupportedLanguage, searchMultilingualKnowledge } from '@/data/offlineKnowledgeMultilingual';
+import { useLanguage } from '@/hooks/useLanguage';
+import { languageLabels, type SupportedLanguage, searchMultilingualKnowledge, chatTranslations } from '@/data/offlineKnowledgeMultilingual';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_API_KEY = import.meta.env.VITE_GROK_API_KEY || '';
@@ -103,43 +104,7 @@ type ChatSession = {
   timestamp: number;
 };
 
-const exampleQuestions = [
-  'What BIS standards apply to electric heaters?',
-  'How can I verify a BIS certification number?',
-  'What is the process for ISI mark certification?',
-  'Which products require compulsory BIS registration?',
-];
 
-const knowledgeTopics = [
-  { label: 'Product Certification', icon: Shield },
-  { label: 'BIS Standards', icon: BookOpen },
-  { label: 'Hallmarking', icon: FileText },
-  { label: 'Compulsory Registration Scheme (CRS)', icon: FileText },
-  { label: 'Consumer Safety', icon: HelpCircle },
-];
-
-const quickStartCards = [
-  {
-    title: 'Verify Certification',
-    desc: 'Learn how to use the BIS Care App and verify R-numbers or CM/L numbers.',
-    query: 'How can I verify an ISI mark on a product?',
-  },
-  {
-    title: 'Mandatory Products',
-    desc: 'Check the list of electronics, steel, and toys under compulsory certification.',
-    query: 'What are the mandatory products under BIS certification?',
-  },
-  {
-    title: 'Gold Hallmarking',
-    desc: 'Understand the symbols on your gold jewellery (HUID, BIS logo, Purity).',
-    query: 'Tell me about the Gold Hallmarking process in India.',
-  },
-  {
-    title: 'New Application',
-    desc: 'Step-by-step guide for manufacturers to register on ManakOnline.',
-    query: 'What is the process to apply for a new BIS license?',
-  },
-];
 
 function parseSources(text: string): { body: string; sources: string[]; suggestions: string[] } {
   let body = text;
@@ -160,10 +125,16 @@ function parseSources(text: string): { body: string; sources: string[]; suggesti
     body = body.slice(0, sugIdx).trim();
   }
 
-  // Extract ---SOURCES---
-  const srcIdx = body.indexOf('---SOURCES---');
+  // Extract ---SOURCES--- (English or Hindi titles)
+  let srcIdx = body.indexOf('---SOURCES---');
+  let srcTagLen = 13;
+  if (srcIdx === -1) {
+    srcIdx = body.indexOf('---आधिकारिक स्रोत---');
+    srcTagLen = 19;
+  }
+
   if (srcIdx !== -1) {
-    const srcBlock = body.slice(srcIdx + 13);
+    const srcBlock = body.slice(srcIdx + srcTagLen);
     sources = srcBlock.split('\n')
       .map(l => l.replace(/^\-\s*/, '').trim())
       .filter(l => l.startsWith('http'));
@@ -249,7 +220,8 @@ const uiTranslations: Record<SupportedLanguage, any> = {
 function getOfflineAnswer(query: string, lang: SupportedLanguage): string | null {
   const results = searchMultilingualKnowledge(query, lang);
   if (results && results.length > 0) {
-    return `${results[0].answer}\n\n---SOURCES---\n- https://www.bis.gov.in/`;
+    const sourceText = lang === 'hi' ? '\n\n---आधिकारिक स्रोत---\n- https://www.bis.gov.in/' : '\n\n---SOURCES---\n- https://www.bis.gov.in/';
+    return `${results[0].answer}${sourceText}`;
   }
   return null;
 }
@@ -259,9 +231,7 @@ export default function BISChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedLang, setSelectedLang] = useState<SupportedLanguage>(() => {
-    return (localStorage.getItem('bis-chat-lang') as SupportedLanguage) || 'en';
-  });
+  const { language: selectedLang, changeLanguage: setSelectedLang } = useLanguage();
   const [isListening, setIsListening] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -391,7 +361,7 @@ export default function BISChat() {
         : '\n\nDETAILED MODE: Give a comprehensive, well-structured answer with all relevant details, clauses, steps, and examples.';
 
       const langInstruction = selectedLang === 'hi'
-        ? '\n\nRESPOND IN Hindi. Keep BIS, ISI, CRS, HUID, FMCS as English acronyms.'
+        ? '\n\nCRITICAL: RESPOND ENTIRELY IN HINDI. Ensure the ---SOURCES--- section is titled ---आधिकारिक स्रोत--- and all follow-up questions in ---SUGGESTIONS--- are in HINDI. Keep BIS, ISI, CRS, HUID, FMCS as English acronyms.'
         : '';
 
       const systemContent = SYSTEM_PROMPT + modeInstruction + langInstruction;
@@ -447,7 +417,6 @@ export default function BISChat() {
 
   const handleLangChange = (lang: SupportedLanguage) => {
     setSelectedLang(lang);
-    localStorage.setItem('bis-chat-lang', lang);
   };
 
   const handleModeChange = (mode: 'simple' | 'detailed') => {
@@ -577,18 +546,28 @@ export default function BISChat() {
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">{uiTranslations[selectedLang].topics}</p>
                     <ul className="space-y-1">
-                      {knowledgeTopics.map(({ label, icon: Icon }) => (
-                        <li key={label}>
-                          <button
-                            type="button"
-                            onClick={() => setInput(label)}
-                            className="w-full text-left flex items-center gap-2 text-xs text-foreground hover:text-primary py-1.5 px-2 rounded-sm hover:bg-primary/5 transition-colors"
-                          >
-                            <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
-                            {label}
-                          </button>
-                        </li>
-                      ))}
+                      {Object.entries(chatTranslations[selectedLang].topics).map(([key, label]) => {
+                        const icons: any = {
+                          productCert: Shield,
+                          bisStandards: BookOpen,
+                          hallmarking: FileText,
+                          crs: FileText,
+                          safety: HelpCircle
+                        };
+                        const Icon = icons[key] || HelpCircle;
+                        return (
+                          <li key={key}>
+                            <button
+                              type="button"
+                              onClick={() => setInput(label as string)}
+                              className="w-full text-left flex items-center gap-2 text-xs text-foreground hover:text-primary py-1.5 px-2 rounded-sm hover:bg-primary/5 transition-colors"
+                            >
+                              <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
+                              {label as string}
+                            </button>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
 
@@ -596,7 +575,7 @@ export default function BISChat() {
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">{uiTranslations[selectedLang].suggested}</p>
                     <ul className="space-y-1">
-                      {exampleQuestions.map((q) => (
+                      {chatTranslations[selectedLang].examples.map((q: string) => (
                         <li key={q}>
                           <button
                             type="button"
@@ -823,7 +802,7 @@ export default function BISChat() {
                     {messages.length === 0 && (
                       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="grid sm:grid-cols-2 gap-3">
-                          {quickStartCards.map((card) => (
+                          {chatTranslations[selectedLang].quickStart.map((card: any) => (
                             <button
                               key={card.title}
                               type="button"
@@ -880,7 +859,7 @@ export default function BISChat() {
                           )}
                           {suggestions.length > 0 && (
                             <div className="mt-3 pt-3 border-t border-border">
-                              <p className="text-xs font-semibold text-foreground mb-2">You might also ask:</p>
+                              <p className="text-xs font-semibold text-foreground mb-2">{chatTranslations[selectedLang].youMightAsk}</p>
                               <div className="flex flex-wrap gap-2">
                                 {suggestions.map((s) => (
                                   <button

@@ -16,6 +16,85 @@ export interface MultilingualEntry {
   translations: Partial<Record<SupportedLanguage, { question: string; answer: string; keywords: string[] }>>;
 }
 
+export const chatTranslations: Record<SupportedLanguage, any> = {
+  en: {
+    topics: {
+      productCert: 'Product Certification',
+      bisStandards: 'BIS Standards',
+      hallmarking: 'Hallmarking',
+      crs: 'Compulsory Registration Scheme (CRS)',
+      safety: 'Consumer Safety',
+    },
+    examples: [
+      'What BIS standards apply to electric heaters?',
+      'How can I verify a BIS certification number?',
+      'What is the process for ISI mark certification?',
+      'Which products require compulsory BIS registration?',
+    ],
+    quickStart: [
+      {
+        title: 'Verify Certification',
+        desc: 'Learn how to use the BIS Care App and verify R-numbers or CM/L numbers.',
+        query: 'How can I verify an ISI mark on a product?',
+      },
+      {
+        title: 'Mandatory Products',
+        desc: 'Check the list of electronics, steel, and toys under compulsory certification.',
+        query: 'What are the mandatory products under BIS certification?',
+      },
+      {
+        title: 'Gold Hallmarking',
+        desc: 'Understand the symbols on your gold jewellery (HUID, BIS logo, Purity).',
+        query: 'Tell me about the Gold Hallmarking process in India.',
+      },
+      {
+        title: 'New Application',
+        desc: 'Step-by-step guide for manufacturers to register on ManakOnline.',
+        query: 'What is the process to apply for a new BIS license?',
+      },
+    ],
+    youMightAsk: 'You might also ask:',
+  },
+  hi: {
+    topics: {
+      productCert: 'उत्पाद प्रमाणन',
+      bisStandards: 'BIS मानक',
+      hallmarking: 'हॉलमार्किंग',
+      crs: 'अनिवार्य पंजीकरण योजना (CRS)',
+      safety: 'उपभोक्ता सुरक्षा',
+    },
+    examples: [
+      'इलेक्ट्रिक हीटर पर कौन से BIS मानक लागू होते हैं?',
+      'मैं BIS प्रमाणन संख्या को कैसे सत्यापित कर सकता हूं?',
+      'ISI मार्क प्रमाणन की प्रक्रिया क्या है?',
+      'किन उत्पादों के लिए अनिवार्य BIS पंजीकरण आवश्यक है?',
+    ],
+    quickStart: [
+      {
+        title: 'प्रमाणन सत्यापित करें',
+        desc: 'BIS केयर ऐप का उपयोग करना और R-नंबर या CM/L नंबर सत्यापित करना सीखें।',
+        query: 'मैं किसी उत्पाद पर ISI मार्क कैसे सत्यापित कर सकता हूं?',
+      },
+      {
+        title: 'अनिवार्य उत्पाद',
+        desc: 'अनिवार्य प्रमाणन के तहत इलेक्ट्रॉनिक्स, स्टील और खिलौनों की सूची जांचें।',
+        query: 'BIS प्रमाणन के तहत अनिवार्य उत्पाद क्या हैं?',
+      },
+      {
+        title: 'स्वर्ण हॉलमार्किंग',
+        desc: 'अपने सोने के गहनों पर प्रतीकों को समझें (HUID, BIS लोगो, शुद्धता)।',
+        query: 'भारत में स्वर्ण हॉलमार्किंग प्रक्रिया के बारे में बताएं।',
+      },
+      {
+        title: 'नया आवेदन',
+        desc: 'निर्माताओं के लिए ManakOnline पर पंजीकरण करने के लिए चरण-दर-चरण मार्गदर्शिका।',
+        query: 'नए BIS लाइसेंस के लिए आवेदन करने की प्रक्रिया क्या है?',
+      },
+    ],
+    youMightAsk: 'आप यह भी पूछ सकते हैं:',
+  }
+};
+
 export const multilingualKnowledge: MultilingualEntry[] = [
   {
     id: 'bis-overview',

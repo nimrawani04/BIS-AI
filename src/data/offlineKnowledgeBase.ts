@@ -389,40 +389,61 @@ Always buy ISI-marked heaters to prevent fire hazards.`,
  */
 export function searchOfflineKnowledge(query: string): KnowledgeEntry[] {
   const normalizedQuery = query.toLowerCase().trim();
-  const queryWords = normalizedQuery.split(/\s+/);
+  const stopWords = new Set(['what', 'where', 'how', 'when', 'who', 'tell', 'about', 'basically', 'please', 'the', 'is', 'are', 'was', 'were', 'for', 'in', 'on', 'at']);
+  
+  const queryWords = normalizedQuery.split(/[\s,?\-!]+/).filter(w => w.length > 1);
+  const coreWords = queryWords.filter(w => !stopWords.has(w));
+
+  if (queryWords.length === 0) return [];
 
   const scored = offlineKnowledgeBase.map((entry) => {
     let score = 0;
 
-    // Exact question match
+    // 1. Exact phrase match in question
     if (entry.question.toLowerCase().includes(normalizedQuery)) {
-      score += 10;
+      score += 15;
     }
 
-    // Keyword matching
+    // 2. Exact keyword matches
     for (const keyword of entry.keywords) {
-      if (normalizedQuery.includes(keyword)) {
-        score += 5;
+      const k = keyword.toLowerCase();
+      if (normalizedQuery === k) {
+        score += 10;
+      } else if (normalizedQuery.includes(k)) {
+        score += 6;
       }
-      for (const word of queryWords) {
-        if (keyword.includes(word) && word.length > 2) {
-          score += 2;
+      
+      for (const word of coreWords) {
+        if (k.includes(word) && word.length > 2) {
+          score += 4;
+        } else if (k === word) {
+          score += 5;
         }
       }
     }
 
-    // Answer content matching
-    for (const word of queryWords) {
-      if (word.length > 2 && entry.answer.toLowerCase().includes(word)) {
+    // 3. Category match
+    if (coreWords.some(w => entry.category.includes(w))) {
+      score += 2;
+    }
+
+    // 4. Answer content matching
+    for (const word of coreWords) {
+      if (word.length > 3 && entry.answer.toLowerCase().includes(word)) {
         score += 1;
       }
+    }
+
+    // Generic match penalty for "bis"
+    if (coreWords.length === 1 && coreWords[0] === 'bis' && entry.id === 'bis-overview') {
+      if (!normalizedQuery.includes('what')) score = Math.min(score, 3);
     }
 
     return { entry, score };
   });
 
   return scored
-    .filter((s) => s.score > 0)
+    .filter((s) => s.score >= 5)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
     .map((s) => s.entry);

@@ -21,9 +21,9 @@ serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get("OPENROUTER_API_KEY");
+    const apiKey = Deno.env.get("GROK_API_KEY") || Deno.env.get("OPENROUTER_API_KEY") || Deno.env.get("XAI_API_KEY");
     if (!apiKey) {
-      throw new Error("OPENROUTER_API_KEY not configured");
+      throw new Error("AI API key not configured");
     }
 
     const prompt = `You are a BIS (Bureau of Indian Standards) product safety analysis assistant for Indian consumers. Analyze the product image and provide a detailed BIS-focused safety assessment.
@@ -66,14 +66,14 @@ Respond in JSON format:
       imageContent = { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } };
     }
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-beta",
+        model: "llama-3.2-11b-vision-preview",
         messages: [
           {
             role: "user",

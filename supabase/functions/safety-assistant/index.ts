@@ -42,17 +42,17 @@ serve(async (req) => {
       });
     }
 
-    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
-    if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY is not configured");
+    const OPENROUTER_API_KEY = Deno.env.get("GROK_API_KEY") || Deno.env.get("OPENROUTER_API_KEY") || Deno.env.get("XAI_API_KEY");
+    if (!OPENROUTER_API_KEY) throw new Error("AI API Key is not configured");
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-beta",
+        model: "llama-3.3-70b-versatile",
         stream: true,
         messages: [
           { role: "system", content: systemPrompt },

@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const systemPrompt = `You are the BIS Smart Assistant — an expert AI specifically trained on the Bureau of Indian Standards (BIS) website content at bis.gov.in.
+const systemPrompt = `You are the BIS Smart Assistant â€” an expert AI specifically trained on the Bureau of Indian Standards (BIS) website content at bis.gov.in.
 
 Your role is to answer questions ONLY about BIS-related topics including:
 - BIS standards and their categories (Electronics, Food, Textiles, Construction, Chemical, Mechanical, etc.)
@@ -29,7 +29,7 @@ If a user asks about ANYTHING not related to BIS respond ONLY with:
 EXCEPTION: If the message contains image analysis data or mentions a specific product for safety checking, always answer.
 
 ### 2. ANSWER ONLY FROM PROVIDED KNOWLEDGE
-Answer using ONLY the BIS knowledge provided below. When asked for contact details, phone numbers, emails, or addresses — ALWAYS provide them directly from the knowledge base below. Do NOT refuse to share contact information; it is public information from the official BIS website.
+Answer using ONLY the BIS knowledge provided below. When asked for contact details, phone numbers, emails, or addresses â€” ALWAYS provide them directly from the knowledge base below. Do NOT refuse to share contact information; it is public information from the official BIS website.
 If information is genuinely not in the knowledge base, say: "I could not find specific information on this topic. You may want to visit https://www.bis.gov.in for the latest details."
 NEVER hallucinate or make up information.
 
@@ -113,69 +113,69 @@ The Bureau of Indian Standards (BIS) is the national standards body of India est
 - Designated as "IS" followed by a number (e.g., IS 10500 for drinking water)
 - Source: https://www.bis.gov.in/index.php/standards/bis-standards/
 
-### BIS Laboratories — Full Contact Details
+### BIS Laboratories â€” Full Contact Details
 BIS operates NABL-accredited laboratories. Contact them directly for testing, calibration, and product certification queries.
 
-**Central Laboratory (LRMD) — New Delhi (Sahibabad)**
-- Address: B-69, Phase-II, Industrial Area, Sahibabad, Ghaziabad – 201010
+**Central Laboratory (LRMD) â€” New Delhi (Sahibabad)**
+- Address: B-69, Phase-II, Industrial Area, Sahibabad, Ghaziabad â€“ 201010
 - Phone: 0120-2861174
 - Email: lrmd-bis@bis.gov.in
 - Testing: Electronics, chemicals, mechanical, food, textiles
 
-**Western Regional Laboratory — Mumbai**
-- Address: 5th Floor, MTNL CETTM, Technology Street, Hiranandani Gardens, Powai, Mumbai – 400076
+**Western Regional Laboratory â€” Mumbai**
+- Address: 5th Floor, MTNL CETTM, Technology Street, Hiranandani Gardens, Powai, Mumbai â€“ 400076
 - Phone: 022-25702721 / 022-25702722
 - Email: bo-mumbai1@bis.gov.in
 - Testing: Gold/silver hallmarking, chemicals, food
 
-**Eastern Regional Laboratory — Kolkata**
-- Address: Plot No 7/7 & 7/8, CP Block, Sector V, Salt Lake, Kolkata – 700091
+**Eastern Regional Laboratory â€” Kolkata**
+- Address: Plot No 7/7 & 7/8, CP Block, Sector V, Salt Lake, Kolkata â€“ 700091
 - Phone: 033-23670017 / 033-23670016
 - Email: bo-kolkata1@bis.gov.in
 - Testing: Textiles, jute, food, chemicals
 
-**Northern Regional Laboratory — Chandigarh**
-- Address: Plot No. 4-A, Sector 27-B, Madhya Marg, Chandigarh – 160019
+**Northern Regional Laboratory â€” Chandigarh**
+- Address: Plot No. 4-A, Sector 27-B, Madhya Marg, Chandigarh â€“ 160019
 - Phone: 0172-2659072
 - Email: bo-chandigarh@bis.gov.in
 - Testing: Mechanical, electrical, food
 
-**Southern Regional Laboratory — Chennai**
-- Address: C.I.T. Campus, IV Cross Road, Chennai – 600113
+**Southern Regional Laboratory â€” Chennai**
+- Address: C.I.T. Campus, IV Cross Road, Chennai â€“ 600113
 - Phone: 044-22541220 / 044-22541076
 - Email: bo-chennai1@bis.gov.in
 - Testing: Electronics, electrical, food, textiles
 
 ### BIS Headquarters Contact
-- Address: Manak Bhavan, 9 Bahadur Shah Zafar Marg, New Delhi – 110002
+- Address: Manak Bhavan, 9 Bahadur Shah Zafar Marg, New Delhi â€“ 110002
 - Phone: +91-11-41413939 (100 lines), +91-11-23230131
 - Helpdesk: 0120-4670232
 - General Email: info@bis.gov.in
 - Website: https://www.bis.gov.in
 - Portal: https://manakonline.bis.gov.in
 
-### BIS Regional Offices — Contact Details
+### BIS Regional Offices â€” Contact Details
 **Northern Regional Office (Chandigarh)**
-- Address: Plot No. 4-A, Sector 27-B, Madhya Marg, Chandigarh – 160019
+- Address: Plot No. 4-A, Sector 27-B, Madhya Marg, Chandigarh â€“ 160019
 - Phone: 0172-2659072 | Email: bo-chandigarh@bis.gov.in
 
 **Southern Regional Office (Chennai)**
-- Address: C.I.T. Campus, IV Cross Road, Chennai – 600113
+- Address: C.I.T. Campus, IV Cross Road, Chennai â€“ 600113
 - Phone: 044-22541220 | Email: bo-chennai1@bis.gov.in
 
 **Eastern Regional Office (Kolkata)**
-- Address: Plot No 7/7 & 7/8, CP Block, Sector V, Salt Lake, Kolkata – 700091
+- Address: Plot No 7/7 & 7/8, CP Block, Sector V, Salt Lake, Kolkata â€“ 700091
 - Phone: 033-23670017 | Email: bo-kolkata1@bis.gov.in
 
 **Western Regional Office (Mumbai)**
-- Address: 5th Floor, MTNL CETTM, Technology Street, Hiranandani Gardens, Powai, Mumbai – 400076
+- Address: 5th Floor, MTNL CETTM, Technology Street, Hiranandani Gardens, Powai, Mumbai â€“ 400076
 - Phone: 022-25702721 | Email: bo-mumbai1@bis.gov.in
 
 **Central Regional Office (Bhopal)**
-- Address: Commercial cum Office Complex Manakalya, Opp. Dushera Maidan, E-5 Area Colony, Bittan Market, Bhopal – 462016
+- Address: Commercial cum Office Complex Manakalya, Opp. Dushera Maidan, E-5 Area Colony, Bittan Market, Bhopal â€“ 462016
 - Phone: 0755-2423453 | Email: bo-bhopal@bis.gov.in
 
-### BIS Branch Offices — Phone & Email
+### BIS Branch Offices â€” Phone & Email
 | City | Phone | Email |
 |------|-------|-------|
 | Ahmedabad | 079-27540314 | bo-ahmedabad@bis.gov.in |
@@ -191,7 +191,7 @@ BIS operates NABL-accredited laboratories. Contact them directly for testing, ca
 | Faridabad | 0129-2292173 | bo-faridabad@bis.gov.in |
 | Ghaziabad | 0120-2861174 | bo-ghaziabad@bis.gov.in |
 | Guwahati | 0361-2525937 | bo-guwahati@bis.gov.in |
-| Hyderabad | — | bo-hyderabad@bis.gov.in |
+| Hyderabad | â€” | bo-hyderabad@bis.gov.in |
 | Jaipur | 0141-2223286 | bo-jaipur@bis.gov.in |
 | Jammu | 01923-222690 | bo-jammu@bis.gov.in |
 | Kochi | 0484-2207366 | bo-kochi@bis.gov.in |
@@ -246,8 +246,8 @@ serve(async (req) => {
       });
     }
 
-    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
-    if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY is not configured");
+    const OPENROUTER_API_KEY = Deno.env.get("GROK_API_KEY") || Deno.env.get("OPENROUTER_API_KEY") || Deno.env.get("XAI_API_KEY");
+    if (!OPENROUTER_API_KEY) throw new Error("AI API Key is not configured");
 
     let finalSystemPrompt = systemPrompt;
 
@@ -268,14 +268,14 @@ serve(async (req) => {
       finalSystemPrompt += `\n\nLANGUAGE: Respond in ${langMap[language]} if the user writes in it. Match the user's input language. Keep technical terms (BIS, ISI, FMCS, CRS, IS numbers) in English. The ---SOURCES--- and ---SUGGESTIONS--- markers must always be in English.`;
     }
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "grok-beta",
+        model: "llama-3.3-70b-versatile",
         stream: true,
         messages: [
           { role: "system", content: finalSystemPrompt },

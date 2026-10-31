@@ -35,14 +35,14 @@ function GovUtilityBar() {
 // Main GoI identity banner
 function GovBanner() {
   return (
-    <div className="w-full bg-white dark:bg-card border-b-2 border-primary/20 py-2 px-4">
-      <div className="max-w-7xl mx-auto flex items-center gap-4">
+    <div className="w-full bg-white dark:bg-card border-b-2 border-primary/20 py-1.5 sm:py-2 px-3 sm:px-4 overflow-hidden">
+      <div className="max-w-7xl mx-auto flex items-center gap-2.5 sm:gap-4">
         {/* Emblem */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
           <img
             src={ashokaChakra}
             alt="Government of India Emblem"
-            className="h-10 w-10 sm:h-12 sm:w-12 object-contain"
+            className="h-8 w-8 sm:h-12 sm:w-12 object-contain"
           />
           <div className="hidden sm:block border-l border-border pl-3">
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Government of India</p>
@@ -51,12 +51,12 @@ function GovBanner() {
         </div>
 
         {/* Portal identity */}
-        <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-          <div>
-            <h1 className="text-base sm:text-lg font-bold text-primary leading-tight" style={{ fontFamily: "'Noto Sans', sans-serif" }}>
+        <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-lg font-bold text-primary leading-tight truncate" style={{ fontFamily: "'Noto Sans', sans-serif" }}>
               Bureau of Indian Standards
             </h1>
-            <p className="text-[10px] sm:text-xs text-muted-foreground font-medium tracking-wide">
+            <p className="text-[10px] sm:text-xs text-muted-foreground font-medium tracking-wide truncate">
               भारतीय मानक ब्यूरो &nbsp;|&nbsp; BIS AI Consumer Safety Portal
             </p>
           </div>
@@ -113,23 +113,24 @@ export function Header() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto shrink-0">
             <LowBandwidthToggle />
             <button
               onClick={toggleTheme}
-              className="p-1.5 rounded text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded text-white/70 hover:text-white hover:bg-white/10 transition-colors shrink-0"
               aria-label="Toggle theme"
             >
               {theme === 'light' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
             </button>
-            <a href="#report">
-              <Button size="sm" className="h-7 text-xs bg-[hsl(var(--flag-saffron))] hover:bg-[hsl(var(--flag-saffron))/90] text-white border-0 rounded-sm px-3">
+            <a href="#report" className="hidden sm:inline-flex shrink-0">
+              <Button size="sm" className="h-7 text-xs bg-[hsl(var(--flag-saffron))] hover:bg-[hsl(var(--flag-saffron))/90] text-white border-0 rounded-sm px-3 shadow-none">
                 Report Unsafe
               </Button>
             </a>
             <button
-              className="md:hidden p-1.5 text-white"
+              className="md:hidden p-1.5 text-white shrink-0 ml-0.5"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>

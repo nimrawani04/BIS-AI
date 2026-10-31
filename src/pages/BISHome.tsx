@@ -112,25 +112,25 @@ export default function BISHome() {
               <div>{t.bis}</div>
               <div>{t.digital}</div>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground break-words">
               {t.title}
             </h1>
             <div className="text-[11px] text-muted-foreground">
               {t.updated}
             </div>
-            <p className="text-sm sm:text-base text-muted-foreground max-w-3xl">
+            <p className="text-xs sm:text-sm text-muted-foreground max-w-3xl break-words">
               {t.desc}
             </p>
-            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
-              <div className="flex-1">
+            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 w-full">
+              <div className="flex-1 min-w-0">
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={t.placeholder}
-                  className="h-10 rounded-[4px]"
+                  className="h-10 rounded-[4px] min-w-0 w-full text-xs sm:text-sm"
                 />
               </div>
-              <Button type="submit" className="h-10 rounded-[4px] px-5 gap-2 shadow-none">
+              <Button type="submit" className="h-10 rounded-[4px] px-5 gap-2 shadow-none shrink-0 text-xs sm:text-sm">
                 <Search className="h-4 w-4" />
                 {t.searchBtn}
               </Button>

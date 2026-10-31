@@ -65,8 +65,6 @@ function getScoreConfig(score: number) {
   return { label: 'At Risk', icon: ShieldX, color: 'text-danger', bg: 'bg-danger/10', border: 'border-danger/30' };
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/home-safety-report`;
-
 export function HouseholdScanner() {
   const [items, setItems] = useState<ScannedProduct[]>([]);
   const [currentQuery, setCurrentQuery] = useState('');

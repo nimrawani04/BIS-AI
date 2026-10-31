@@ -18,7 +18,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { languageLabels, type SupportedLanguage, searchMultilingualKnowledge, chatTranslations } from '@/data/offlineKnowledgeMultilingual';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_API_KEY = import.meta.env.VITE_GROK_API_KEY || '';
+const GROQ_API_KEY = import.meta.env.VITE_GROK_API_KEY || import.meta.env.VITE_GROQ_API_KEY || '';
 
 const SYSTEM_PROMPT = `You are the BIS Smart Assistant — an expert AI on the Bureau of Indian Standards (BIS), Government of India.
 
@@ -217,13 +217,20 @@ const uiTranslations: Record<SupportedLanguage, any> = {
   }
 };
 
-function getOfflineAnswer(query: string, lang: SupportedLanguage): string | null {
+function getOfflineAnswer(query: string, lang: SupportedLanguage): string {
   const results = searchMultilingualKnowledge(query, lang);
   if (results && results.length > 0) {
     const sourceText = lang === 'hi' ? '\n\n---आधिकारिक स्रोत---\n- https://www.bis.gov.in/' : '\n\n---SOURCES---\n- https://www.bis.gov.in/';
-    return `${results[0].answer}${sourceText}`;
+    const suggestionsText = lang === 'hi'
+      ? '\n\n---SUGGESTIONS---\n- अनिवार्य प्रमाणन के अंतर्गत कौन से उत्पाद आते हैं?\n- मैं ISI मार्क की पुष्टि कैसे कर सकता हूँ?\n- BIS मानक कैसे खोजें?'
+      : '\n\n---SUGGESTIONS---\n- What products fall under mandatory certification?\n- How can I verify an ISI mark?\n- What is the process for BIS hallmarking?';
+    return `${results[0].answer}${sourceText}${suggestionsText}`;
   }
-  return null;
+
+  if (lang === 'hi') {
+    return `भारतीय मानक ब्यूरो (BIS) से संबंधित आपका प्रश्न प्राप्त हुआ। वर्तमान में यह सेवा ऑफलाइन ज्ञान भंडार से संचालित हो रही है।\n\n- **मानक व प्रमाणन जानकारी:** कृपया आधिकारिक पोर्टल [www.bis.gov.in](https://www.bis.gov.in) देखें या **BIS Care App** का उपयोग करें।\n- **ISI / CRS सत्यापन:** BIS Care App पर CM/L नंबर या R-नंबर दर्ज करके पुष्टि करें।\n- **हेल्पलाइन:** 14100 (टोल-फ्री)\n\n---आधिकारिक स्रोत---\n- https://www.bis.gov.in/\n- https://manakonline.bis.gov.in/\n\n---SUGGESTIONS---\n- अनिवार्य प्रमाणन के अंतर्गत कौन से उत्पाद आते हैं?\n- मैं ISI मार्क की पुष्टि कैसे कर सकता हूँ?\n- BIS मानक कैसे खोजें?`;
+  }
+  return `Here is the relevant information from the BIS offline knowledge repository regarding your query:\n\n- **Official Standards & Application:** For official standards, licensing procedures, and forms, visit [www.bis.gov.in](https://www.bis.gov.in) or [manakonline.bis.gov.in](https://manakonline.bis.gov.in).\n- **Product Verification:** Always check the ISI mark and 7-digit CM/L license number using the **BIS Care App**.\n- **Electronics & IT:** Verified under the Compulsory Registration Scheme (CRS) via [crsbis.in](https://crsbis.in).\n- **Toll-Free Helpline:** 14100\n\n---SOURCES---\n- https://www.bis.gov.in/\n- https://manakonline.bis.gov.in/\n- https://crsbis.in/\n\n---SUGGESTIONS---\n- What products fall under mandatory certification?\n- How can I verify an ISI mark?\n- What is the process for BIS hallmarking?`;
 }
 
 export default function BISChat() {
@@ -346,14 +353,16 @@ export default function BISChat() {
     setInput('');
     setIsLoading(true);
     try {
-      // Offline fallback
-      if (!navigator.onLine) {
+      // Offline or No-Key fallback: respond immediately from local knowledge
+      if (!navigator.onLine || !GROQ_API_KEY) {
         const offlineAnswer = getOfflineAnswer(trimmed, selectedLang);
-        if (offlineAnswer) {
-          setMessages(prev => [...prev, { role: 'assistant', content: offlineAnswer }]);
-          setIsLoading(false);
-          return;
-        }
+        setMessages(prev => {
+          const updated = [...prev, { role: 'assistant', content: offlineAnswer }];
+          saveToHistory(updated);
+          return updated;
+        });
+        setIsLoading(false);
+        return;
       }
 
       const modeInstruction = responseMode === 'simple'
@@ -385,31 +394,27 @@ export default function BISChat() {
       });
 
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
         if (resp.status === 429) {
-          // Rate limit hit — fall back to offline knowledge
-          toast.error('Groq rate limit reached (30 requests/min). Using offline knowledge...');
-          const offlineAnswer = getOfflineAnswer(trimmed, selectedLang);
-          if (offlineAnswer) {
-            setMessages(prev => [...prev, { role: 'assistant', content: `*(Rate Limited — Offline Fallback)*\n\n${offlineAnswer}` }]);
-          } else {
-            setMessages(prev => [...prev, { role: 'assistant', content: `I've hit the Groq API rate limit (30 requests per minute). Please wait 10-20 seconds and try again, or ask a common BIS question that I can answer offline.\n\n---SOURCES---\n- https://www.bis.gov.in/\n\n---SUGGESTIONS---\n- What is BIS?\n- How to apply for BIS certification?\n- What is ISI mark?` }]);
-          }
-        } else {
-          toast.error(err?.error?.message || `Error ${resp.status}. Please try again.`);
+          toast.error('Groq rate limit reached (30 req/min). Using offline knowledge...');
         }
+        const offlineAnswer = getOfflineAnswer(trimmed, selectedLang);
+        setMessages(prev => {
+          const updated = [...prev, { role: 'assistant', content: `*(Offline Fallback)*\n\n${offlineAnswer}` }];
+          saveToHistory(updated);
+          return updated;
+        });
         return;
       }
 
       await handleStreamResponse(resp);
     } catch (e) {
-      console.error('Chat error:', e);
+      console.warn('Live chat query failed, using offline repository:', e);
       const offlineAnswer = getOfflineAnswer(trimmed, selectedLang);
-      if (offlineAnswer) {
-        setMessages(prev => [...prev, { role: 'assistant', content: `*(Offline)* ${offlineAnswer}` }]);
-      } else {
-        toast.error('Failed to get response. Check your connection and try again.');
-      }
+      setMessages(prev => {
+        const updated = [...prev, { role: 'assistant', content: `*(Offline)*\n\n${offlineAnswer}` }];
+        saveToHistory(updated);
+        return updated;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -509,36 +514,36 @@ export default function BISChat() {
       <BISHeader />
 
       {/* Page title band — matches other pages */}
-      <div className="bg-primary/5 border-b border-border">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
+      <div className="bg-primary/5 border-b border-border w-full overflow-hidden">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2 sm:mb-3">
             <span>{uiTranslations[selectedLang].title}</span>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-primary font-medium">{uiTranslations[selectedLang].subtitle}</span>
+            <ChevronRight className="h-3 w-3 shrink-0" />
+            <span className="text-primary font-medium truncate">{uiTranslations[selectedLang].subtitle}</span>
           </nav>
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
                 {uiTranslations[selectedLang].digitalService}
               </p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{uiTranslations[selectedLang].subtitle}</h1>
-              <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground break-words">{uiTranslations[selectedLang].subtitle}</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl break-words">
                 {uiTranslations[selectedLang].description}
               </p>
             </div>
-            <Badge variant="secondary" className="self-start sm:self-auto text-xs px-3 py-1.5 rounded-sm">
+            <Badge variant="secondary" className="self-start sm:self-auto text-[11px] sm:text-xs px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-sm shrink-0">
               {uiTranslations[selectedLang].poweredBy}
             </Badge>
           </div>
         </div>
       </div>
 
-      <main className="flex-1 py-8 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-[240px_1fr] gap-6">
+      <main className="flex-1 py-4 sm:py-8 px-3 sm:px-4 w-full overflow-hidden">
+        <div className="max-w-6xl mx-auto w-full">
+          <div className="grid md:grid-cols-[240px_1fr] gap-4 sm:gap-6 w-full">
 
             {/* Sidebar */}
-            <aside className="space-y-4">
+            <aside className="space-y-4 order-2 md:order-1 min-w-0">
               <Card className="rounded-sm">
                 <CardContent className="p-4 space-y-4">
                   {/* New Chat */}
@@ -645,23 +650,23 @@ export default function BISChat() {
             </aside>
 
             {/* Main chat area */}
-            <section className="space-y-4 min-w-0">
+            <section className="space-y-4 min-w-0 w-full order-1 md:order-2">
 
               {/* Controls bar */}
-              <Card className="rounded-sm">
-                <CardContent className="p-4">
-                  <div className="flex flex-wrap items-center gap-3">
+              <Card className="rounded-sm w-full overflow-hidden">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Language */}
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">{uiTranslations[selectedLang].language}:</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-xs text-muted-foreground shrink-0">{uiTranslations[selectedLang].language}:</span>
                       <div className="flex gap-1">
                         {(Object.keys(languageLabels) as SupportedLanguage[]).map((lang) => (
                           <Button
                             key={lang}
                             variant={selectedLang === lang ? 'default' : 'outline'}
                             size="sm"
-                            className="text-xs px-2.5 h-7 rounded-sm"
+                            className="text-xs px-2 sm:px-2.5 h-7 rounded-sm"
                             onClick={() => handleLangChange(lang)}
                           >
                             {languageLabels[lang]}
@@ -673,12 +678,12 @@ export default function BISChat() {
                     <div className="h-4 w-px bg-border hidden sm:block" />
 
                     {/* Response mode */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{uiTranslations[selectedLang].mode}:</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <span className="text-xs text-muted-foreground shrink-0">{uiTranslations[selectedLang].mode}:</span>
                       <div className="flex border border-border rounded-sm overflow-hidden">
                         <button
                           onClick={() => handleModeChange('simple')}
-                          className={`text-[11px] px-3 h-7 transition-colors ${
+                          className={`text-[11px] px-2.5 sm:px-3 h-7 transition-colors ${
                             responseMode === 'simple'
                               ? 'bg-primary text-primary-foreground'
                               : 'text-muted-foreground hover:bg-secondary/50'
@@ -688,7 +693,7 @@ export default function BISChat() {
                         </button>
                         <button
                           onClick={() => handleModeChange('detailed')}
-                          className={`text-[11px] px-3 h-7 border-l border-border transition-colors ${
+                          className={`text-[11px] px-2.5 sm:px-3 h-7 border-l border-border transition-colors ${
                             responseMode === 'detailed'
                               ? 'bg-primary text-primary-foreground'
                               : 'text-muted-foreground hover:bg-secondary/50'
@@ -701,13 +706,13 @@ export default function BISChat() {
                   </div>
 
                   {/* Input form */}
-                  <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex gap-2 mt-4">
-                    <div className="flex-1 flex gap-2">
+                  <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex gap-1.5 sm:gap-2 mt-3 sm:mt-4 w-full">
+                    <div className="flex-1 flex gap-1.5 sm:gap-2 min-w-0">
                       <Input
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder={uiTranslations[selectedLang].placeholder}
-                        className="h-11 rounded-sm"
+                        className="h-10 sm:h-11 rounded-sm min-w-0 w-full text-xs sm:text-sm"
                         disabled={isLoading}
                       />
                       {hasVoice && (
@@ -715,7 +720,7 @@ export default function BISChat() {
                           type="button"
                           variant={isListening ? 'destructive' : 'outline'}
                           onClick={handleVoiceInput}
-                          className="h-11 w-11 p-0 rounded-sm shrink-0"
+                          className="h-10 sm:h-11 w-10 sm:w-11 p-0 rounded-sm shrink-0"
                           aria-label="Voice input"
                         >
                           {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -725,11 +730,11 @@ export default function BISChat() {
                     <Button
                       type="submit"
                       disabled={isLoading || !input.trim()}
-                      className="h-11 rounded-sm px-5 gap-2 shadow-none shrink-0"
+                      className="h-10 sm:h-11 rounded-sm px-3 sm:px-5 gap-1.5 sm:gap-2 shadow-none shrink-0 text-xs sm:text-sm"
                     >
-                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {uiTranslations[selectedLang].ask}
-                      </Button>
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      <span className="hidden xs:inline">{uiTranslations[selectedLang].ask}</span>
+                    </Button>
                   </form>
 
                   {/* Image upload */}
@@ -846,10 +851,27 @@ export default function BISChat() {
                       }
                       const { body, sources, suggestions } = parseSources(msg.content);
                       return (
-                        <div key={i} className="border border-border bg-white dark:bg-card rounded-sm p-4">
+                        <div key={i} className="border border-border bg-white dark:bg-card rounded-sm p-3 sm:p-4">
                           <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">{uiTranslations[selectedLang].answerLabel}</p>
-                          <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                          <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground break-words overflow-hidden text-xs sm:text-sm">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                table: ({ node, ...props }) => (
+                                  <div className="overflow-x-auto my-2 w-full max-w-full">
+                                    <table className="gov-table w-full text-xs" {...props} />
+                                  </div>
+                                ),
+                                a: ({ node, ...props }) => (
+                                  <a className="text-primary hover:underline break-all" target="_blank" rel="noreferrer" {...props} />
+                                ),
+                                pre: ({ node, ...props }) => (
+                                  <pre className="overflow-x-auto max-w-full p-2 bg-muted rounded text-xs" {...props} />
+                                ),
+                              }}
+                            >
+                              {body}
+                            </ReactMarkdown>
                           </div>
                           {sources.length > 0 && (
                             <div className="mt-3 pt-3 border-t border-border">

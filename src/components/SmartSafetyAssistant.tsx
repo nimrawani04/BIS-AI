@@ -22,7 +22,8 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { OfflineSafetyAssistant } from '@/components/OfflineSafetyAssistant';
 import { searchMultilingualKnowledge } from '@/data/offlineKnowledgeMultilingual';
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/safety-assistant`;
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_API_KEY = import.meta.env.VITE_GROK_API_KEY || import.meta.env.VITE_GROQ_API_KEY || '';
 
 const quickPrompts = [
   { label: 'Helmet', icon: HardHat },
@@ -62,25 +63,53 @@ function OnlineSafetyAssistant() {
 
     setIsLoading(true);
     setHasSearched(true);
-    setResponse('');
+    const renderLocalFallback = (text: string) => {
+      const results = searchMultilingualKnowledge(text, 'en');
+      let fallbackText = '';
+      if (results && results.length > 0) {
+        fallbackText = `### Safety & Compliance Guide: ${text}\n\n${results[0].answer}\n\n**Official Verification:**\n- Verify using the BIS Care App.\n- Helpline: 14100 (Toll Free)`;
+      } else {
+        fallbackText = `### Safety & Compliance Guide: ${text}\n\n- **Mandatory Certification:** Check if the product requires mandatory ISI mark or CRS registration.\n- **Authentication:** Always verify the 7-digit CM/L license number or R-number on the BIS Care App before purchase.\n- **Safety Precautions:** Avoid counterfeit products without genuine manufacturer markings and Indian standard specifications.\n- **Portal:** Visit https://www.bis.gov.in for the official standard catalog.\n- **Toll-free Helpline:** 14100`;
+      }
+      setResponse(fallbackText);
+    };
+
+    if (!navigator.onLine || !GROQ_API_KEY) {
+      renderLocalFallback(trimmed);
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      // Use live API call to Supabase Edge Function
-      const response = await fetch(CHAT_URL, {
+      const response = await fetch(GROQ_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''}`,
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
         },
-        body: JSON.stringify({ query: trimmed }),
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          stream: true,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert BIS safety assistant for Indian consumers. Provide specific Indian Standards (IS), mandatory certification status (ISI mark, CRS), key hazards, and verification instructions.',
+            },
+            { role: 'user', content: trimmed },
+          ],
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        renderLocalFallback(trimmed);
+        return;
       }
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
+      if (!reader) {
+        renderLocalFallback(trimmed);
+        return;
+      }
 
       const decoder = new TextDecoder();
       let buffer = '';
@@ -116,8 +145,8 @@ function OnlineSafetyAssistant() {
         }
       }
     } catch (e) {
-      console.error('Safety assistant error:', e);
-      toast.error('Failed to get safety guide. Please try again.');
+      console.warn('Safety assistant live query failed, falling back to local guide:', e);
+      renderLocalFallback(trimmed);
     } finally {
       setIsLoading(false);
     }

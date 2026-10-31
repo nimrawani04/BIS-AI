@@ -57,12 +57,12 @@ function TricolorStrip() {
 
 function GovBanner({ lang }: { lang: SupportedLanguage }) {
   return (
-    <div className="w-full bg-white dark:bg-card border-b border-border/50 py-2 px-4 flex items-center gap-4">
-      <img src={ashokaChakra} alt="Government of India Emblem" className="h-9 w-9 object-contain shrink-0" />
-      <div className="border-l border-border pl-3">
-        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">{navTranslations[lang].govtIndia}</p>
-        <p className="text-xs font-bold text-primary leading-tight">{navTranslations[lang].bisTitle}</p>
-        <p className="text-[11px] text-muted-foreground">{navTranslations[lang].portalDesc}</p>
+    <div className="w-full bg-white dark:bg-card border-b border-border/50 py-2 px-3 sm:px-4 flex items-center gap-3 sm:gap-4 overflow-hidden">
+      <img src={ashokaChakra} alt="Government of India Emblem" className="h-8 w-8 sm:h-9 sm:w-9 object-contain shrink-0" />
+      <div className="border-l border-border pl-2.5 sm:pl-3 min-w-0 flex-1">
+        <p className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold uppercase tracking-wider sm:tracking-widest truncate">{navTranslations[lang].govtIndia}</p>
+        <p className="text-xs font-bold text-primary leading-tight truncate">{navTranslations[lang].bisTitle}</p>
+        <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate hidden xs:block">{navTranslations[lang].portalDesc}</p>
       </div>
     </div>
   );
@@ -152,13 +152,13 @@ export function BISHeader() {
       <OfflineBanner />
       <TricolorStrip />
       <GovBanner lang={language} />
-      <div className="border-b border-border/50 bg-primary">
-        <div className="container flex h-[60px] items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 shrink-0">
-            <div className="flex h-7 w-7 items-center justify-center rounded bg-white/10 border border-white/20">
+      <div className="border-b border-border/50 bg-primary w-full overflow-hidden">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 flex h-12 sm:h-[60px] items-center justify-between">
+          <Link to="/" className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <div className="flex h-7 w-7 items-center justify-center rounded bg-white/10 border border-white/20 shrink-0">
               <BISLogo className="h-4 w-4" />
             </div>
-            <span className="text-sm font-bold text-white hidden sm:block">BIS AI</span>
+            <span className="text-sm font-bold text-white">BIS AI</span>
           </Link>
 
           <nav className="hidden md:flex items-center flex-1 ml-4 h-full">
@@ -177,15 +177,17 @@ export function BISHeader() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-2 ml-auto">
-            <LowBandwidthToggle />
+          <div className="flex items-center gap-1 sm:gap-2 ml-auto shrink-0">
+            <div className="hidden sm:flex">
+              <LowBandwidthToggle />
+            </div>
             
-            <div className="flex h-8 bg-white/10 rounded overflow-hidden mr-1">
+            <div className="flex h-7 sm:h-8 bg-white/10 rounded overflow-hidden">
               {(Object.keys(languageLabels) as SupportedLanguage[]).map((lang) => (
                 <button
                   key={lang}
                   onClick={() => changeLanguage(lang)}
-                  className={`px-2 py-0.5 text-[10px] font-bold transition-colors ${
+                  className={`px-1.5 sm:px-2 py-0.5 text-[10px] font-bold transition-colors ${
                     language === lang 
                       ? 'bg-[hsl(var(--flag-saffron))] text-white' 
                       : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -198,7 +200,7 @@ export function BISHeader() {
 
             <button
               onClick={toggleTheme}
-              className="p-1.5 rounded text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded text-white/70 hover:text-white hover:bg-white/10 transition-colors shrink-0"
               aria-label="Toggle theme"
             >
               {theme === 'light' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
@@ -206,15 +208,16 @@ export function BISHeader() {
             {user ? (
               <UserAvatarDropdown user={user} signOut={signOut} />
             ) : (
-              <Link to="/auth">
+              <Link to="/auth" className="hidden sm:inline-flex shrink-0">
                 <Button size="sm" className="h-8 text-xs bg-[hsl(var(--flag-saffron))] hover:bg-[hsl(28,100%,44%)] text-white border-0 rounded-md px-3 shadow-none">
                   <LogIn className="h-3 w-3 mr-1" /> {currentNav.signIn}
                 </Button>
               </Link>
             )}
             <button
-              className="md:hidden p-1.5 text-white"
+              className="md:hidden p-1.5 text-white shrink-0 ml-0.5"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -256,6 +259,10 @@ export function BISHeader() {
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 sm:hidden">
+              <span className="text-sm font-medium text-muted-foreground">Bandwidth Mode</span>
+              <LowBandwidthToggle />
             </div>
             <div className="p-3">
               {user ? (
